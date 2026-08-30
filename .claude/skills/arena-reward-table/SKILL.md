@@ -185,7 +185,7 @@ bun run tools/9c/arena-reward-table.ts --table-only \
 | CLI가 라이브 API로 같은 두 시즌을 재현(시즌 메타·참가자 수) | ✅ `bun run tools/9c/fixtures/verify-arena-reward-table.ts --live` |
 | CSV 폴백(스테이킹+용기패스) 경로가 API와 동일한 결과를 냄 | ✅ 수동 검증 — Odin S39 rank1("Mazi")에 스테이킹 lv3+용기패스 CSV를 먹였더니 골든 픽스처의 CP+St3(14,000)와 정확히 일치 |
 | 인원/비율 불변식이 깨진 설정에서 FATAL로 잡음 | ✅ `arena-reward-calc.test.ts`의 "invariant checks catch broken configs" 스위트 |
-| PNG 렌더링 (스펙 §7-2 레이아웃 근사 재현) | ✅ `arena-reward-png.ts` — 골든 픽스처 두 시즌 모두 육안 확인(제목·10그룹·합계 행 전부 일치). **티켓 정보 블록·추정 날짜는 의도적으로 제외**(스코프 노트 위 참고) |
+| PNG 렌더링 (스펙 §7-2 레이아웃 근사 재현) | ✅ `arena-reward-png.ts` — 골든 픽스처 두 시즌 모두 육안 확인(제목·10그룹·합계 행 전부 일치). 추정 날짜는 `arena-season-preview`의 공용 블록타임 모듈(`arena-block-time.ts`)이 생긴 뒤 연결 완료(2026-08-30) — Odin S39로 라이브 재생성해 실제 백테스트 값(§`arena-season-preview` 참고, 시작 08:48:16 UTC·종료 07:13:56 UTC)과 마진 이내 일치 확인. **티켓 정보 블록만 의도적으로 계속 제외**(스코프 노트 위 참고 — `arena-announce` 조사로 애초에 공지에도 안 들어간다는 게 확인돼 계속 제외가 맞는 결정으로 굳어짐) |
 | 용기패스 API(JWT) 실사용 | ❌ 미해결 — 시크릿 미보유, CSV 폴백만 실사용 가능 |
 
 ---
@@ -221,7 +221,7 @@ bun run tools/9c/arena-reward-table.ts --table-only \
 | --- | --- | --- |
 | 용기패스 API 실사용 | 시크릿 미보유 | `NC_MAINNET_SEASONPASS_JWT_KEY` 별도 전달 — 받으면 `fetchCouragePassEntries`의 스텁만 채우면 됨(호출 형태는 이미 정의돼 있음) |
 | PNG의 "티켓 정보" 블록 | 의도적으로 미포함(스코프 노트, §2 위 참고) | `arena-announce`가 시즌 타입별 문구 틀을 확보하면 그때 같이 재검토 |
-| PNG의 추정 날짜(블록→시간 환산) | 의도적으로 미포함 | `arena-season-preview`가 공용 블록타임 모듈(§6-3)을 만들면 그걸 가져다 씀 — 여기서 따로 구현 안 함 |
+| ~~PNG의 추정 날짜(블록→시간 환산)~~ | ✅ **해소됨** (2026-08-30) — `arena-block-time.ts` 연결 완료, `--png` 사용 시 네트워크가 지정돼 있으면 자동으로 날짜 라인 추가 | — |
 | PNG가 실제 백오피스 산출물과 시각적으로 얼마나 비슷한지 | 미확인 — 이 세션은 스펙 문서 §7-2의 텍스트 설명만 근거로 만듦, 실제 샘플 PNG(Heimdall CS9·Odin S39)를 직접 보고 대조한 적 없음 | 실물 샘플과 나란히 놓고 비교 |
 | `/leaderboard/completed`의 캐시-지연 400이 정말 일시적인지 | 추정(재시도로 통과하는 사례를 아직 직접 관측 못함 — 오래된 시즌에서 우회 확인만 함) | 시즌 종료 직후 실제로 이 스킬을 돌려서 재시도가 통과하는지 관측 |
 | 스테이킹 CSV 폴백 포맷 | 이 스킬이 임의로 정의(`agent_address,deposit`) — 백엔드에 대응 포맷 없음 | 실사용 전 담당자 검토 |

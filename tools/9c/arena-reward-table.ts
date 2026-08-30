@@ -44,8 +44,9 @@ import {
   parseStakingCsv,
   resolveSeasonId,
 } from "./lib/arena-reward-sources";
-import { getNetworkInfo, requireArenaServiceHost, type ArenaNetwork } from "./lib/arena-network";
+import { getNetworkInfo, requireArenaServiceHost, requireMimirHost, type ArenaNetwork } from "./lib/arena-network";
 import { renderRewardTablePng } from "./lib/arena-reward-png";
+import { estimateDateForBlock, measureBlockTimeModel } from "./lib/arena-block-time";
 
 interface Args {
   network?: ArenaNetwork;
@@ -318,12 +319,29 @@ async function main() {
   }
 
   if (args.pngPath) {
+    // Date estimates are best-effort: only possible when we know which network this is
+    // (so we know which Mimir to ask) and only worth the extra round-trip when a PNG is
+    // actually being produced. A measurement failure here shouldn't block the PNG itself
+    // — falls back to block-numbers-only, same as before arena-block-time.ts existed.
+    let dates: Parameters<typeof renderRewardTablePng>[0]["dates"] = null;
+    if (args.network && seasonMeta) {
+      try {
+        const model = await measureBlockTimeModel(requireMimirHost(args.network));
+        const start = estimateDateForBlock(model, seasonMeta.startBlock);
+        const end = estimateDateForBlock(model, seasonMeta.endBlock);
+        dates = { start: start.estimate, startMarginMinutes: start.marginMinutes, end: end.estimate, endMarginMinutes: end.marginMinutes };
+      } catch (e) {
+        console.error(`날짜 추정 실패, 블록 번호만 표시: ${e instanceof Error ? e.message : e}`);
+      }
+    }
+
     const png = renderRewardTablePng({
       title,
       groups,
       tiers,
       rankingPool: config.rankingPool,
       season: seasonMeta ? { startBlock: seasonMeta.startBlock, endBlock: seasonMeta.endBlock } : null,
+      dates,
     });
     await Bun.write(args.pngPath, png);
     console.error(`PNG 저장: ${args.pngPath}`);
