@@ -176,7 +176,13 @@ FATAL을 억지로 만들면 매번 오탐이 나거나 거짓 확신을 준다.
 | --- | --- |
 | `TicketPolicyResponse`(공개 API)엔 `id`/`name`이 없다 — `defaultTicketsPerRound`/`maxPurchasableTicketsPerRound`/`purchasePrices` 3개뿐 | Swagger 전문(`odin-arena.9c.gg/swagger/v1/swagger.json`) 확인, 이 세션 |
 | 21개 엔드포인트 전수 확인 — `/policies` 류 독립 조회 경로 없음 | 위와 동일 |
-| DB의 `TicketPolicy` 모델엔 `ArenaType` 컬럼 자체가 없다. `Name`은 운영자 자유 입력 | 사용자 조사(DB 스키마 열람) |
+| DB의 `TicketPolicy` 모델엔 `ArenaType` 컬럼 자체가 없다. `Name`은 운영자 자유 입력 | 사용자 조사(DB 스키마 열람), 이 세션이 `ArenaService`(공개 레포) `Policy.razor` 소스에서 `ArenaType` 참조 0건으로 재확인(2026-08-30) |
+| **종료 블록 공식이 이 스킬 구현과 완전히 동일** — `long endBlock = startBlock + (roundInterval * roundCount) - 1;` | 이 세션, `ArenaService.Shared/Repositories/SeasonRepository.cs`의 `AddSeasonWithRoundsAsync` 직접 확인(2026-08-30) |
+| **시작 블록 프리필 = `GetLastSeasonEndBlockAsync() + 1`** (첫 시즌이면 `?? 1`) — `OrderByDescending(s => s.EndBlock).FirstOrDefaultAsync()`로 "가장 큰 EndBlock" 정의도 확인됨 | 이 세션, `SeasonRepository.cs` + `ManageSeasons.razor:273` 직접 확인 |
+| **`IsBlockRangeOverlappingAsync`는 겹침만 막고 gap은 허용** — `!(s.EndBlock < startBlock \|\| s.StartBlock > endBlock)`, 연속성 검사 없음 | 이 세션, `SeasonRepository.cs` 직접 확인 — 스펙 §5-1 "서버는 겹침만 막고 연속성은 안 봄"과 정확히 일치 |
+| **`round_interval`은 하드코딩이 아니라 시즌마다 자유 입력 가능한 파라미터** — `AddSeasonWithRoundsAsync`/`UpdateSeasonAsync`의 일반 `int` 매개변수 | 이 세션, `SeasonRepository.cs`/`ISeasonRepository` 직접 확인 — 이 스킬이 10,800을 "관측 기준값(WARN)"으로만 다루고 하드 규칙으로 안 다룬 게 맞았음을 뒷받침 |
+| `BattleTicketPolicyId`/`RefreshTicketPolicyId`는 DB 레벨 FK 제약(`[ForeignKey]`)이 있어 존재하지 않는 ID는 막히지만, `ArenaType`과의 정합성 검사는 없다 | 이 세션, `ArenaService.Shared/Models/Season.cs` 직접 확인 |
+| ⚠️ **새로 확인된 위험**: `AdjustSeasonEndBlockAsync(seasonId, newEndBlock)`가 존재하고, `season.EndBlock = newEndBlock`만 하고 끝난다 — 라운드 재전개도, `interval×count` 재검증도, 겹침 재검사도 없다. 시즌 등록 후 종료 블록을 수동 조정하면 이 스킬이 재현한 공식(`end = start + interval×count - 1`)과 실제 DB 값이 어긋날 수 있다는 뜻 | 이 세션, `SeasonRepository.cs` 직접 확인. **이 스킬은 아직 이 케이스를 감지하지 못한다** — §7 미해결 항목에 추가 |
 | `battle_ticket_policy_id == refresh_ticket_policy_id`가 전 시즌(odin 44 · heimdall 42 · thor 8) 예외 없이 성립 | 사용자 조사 2건, 완전 교차검증됨 |
 | **thor 시즌 2(블록 폭 ~6800, 실제 운영 구간)가 "new Championship" 정책을 OFF_SEASON에 사용** — "이름=타입" 관습이 실제로 깨진 신뢰할 수 있는 사례 | 사용자 조사(2번째 답변), block 폭까지 확인해 시드 row 배제 |
 | odin/heimdall/thor의 season id=1은 블록 폭 1~2 — 시드/더미 row로 판단, 관측 데이터에서 제외 | 사용자 조사(2번째 답변) |
@@ -197,3 +203,4 @@ FATAL을 억지로 만들면 매번 오탐이 나거나 거짓 확신을 준다.
 | Thor의 블록타임 | 미확인·확인 불가 — Thor는 Mimir 자체가 없어 이 스킬이 애초에 동작 안 함(`requireMimirHost`가 즉시 에러) | Thor용 Mimir가 생기면 재검토 |
 | gap 발생이 "무조건 오류"인지 "의도적 공백 허용"인지 | 담당자 정책 미확인(스펙 §6-2) | 담당자 확인 — 확인되면 이 스킬의 gap 문구를 조건부로 조정 |
 | ~~`--reward-table-pool` 연동 워크플로~~ | ✅ **해소됨** (2026-08-30) — §3-1에 실제 순서(RankingPool 확정 → 동일 값을 `--total-prize`/`--reward-table-pool`에 전달 → FATAL 없으면 ManageSeasons에 등록) 문서화, 라이브로 재현 확인 | — |
+| **`AdjustSeasonEndBlockAsync`로 종료 블록이 수동 조정된 시즌 감지** | 새로 발견(2026-08-30, 소스 확인) — 이 API가 라운드 재전개·공식 재검증·겹침 재검사 없이 `EndBlock`만 바꿔서, 이 스킬이 재현하는 `end = start+interval×count-1` 공식과 실제 DB 값이 어긋날 수 있음. 지금은 이 케이스를 감지하는 체크가 없음 | 라이브 `/seasons`의 `endBlock`이 이 스킬의 계산값과 다르면 WARN을 내는 체크 추가 — 다음 착수 시 반영 |
