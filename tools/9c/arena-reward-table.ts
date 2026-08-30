@@ -45,6 +45,7 @@ import {
   resolveSeasonId,
 } from "./lib/arena-reward-sources";
 import { getNetworkInfo, requireArenaServiceHost, type ArenaNetwork } from "./lib/arena-network";
+import { renderRewardTablePng } from "./lib/arena-reward-png";
 
 interface Args {
   network?: ArenaNetwork;
@@ -62,6 +63,7 @@ interface Args {
   stakingCsv?: string;
   couragePassCsv?: string;
   configFile?: string;
+  pngPath?: string;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -114,6 +116,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case "--config":
         args.configFile = next();
+        break;
+      case "--png":
+        args.pngPath = next();
         break;
       default:
         throw new Error(`알 수 없는 옵션: ${a}`);
@@ -310,6 +315,18 @@ async function main() {
     console.log(JSON.stringify(output, null, 2));
   } else {
     printHumanReadable(output);
+  }
+
+  if (args.pngPath) {
+    const png = renderRewardTablePng({
+      title,
+      groups,
+      tiers,
+      rankingPool: config.rankingPool,
+      season: seasonMeta ? { startBlock: seasonMeta.startBlock, endBlock: seasonMeta.endBlock } : null,
+    });
+    await Bun.write(args.pngPath, png);
+    console.error(`PNG 저장: ${args.pngPath}`);
   }
 
   if (fatal.length > 0) {

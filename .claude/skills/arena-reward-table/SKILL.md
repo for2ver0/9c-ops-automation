@@ -18,11 +18,14 @@ description: Nine Chronicles 아레나 시즌 상금 표를 계산하고 검증�
 | `arena-reward-calc.ts` | `tools/9c/lib/arena-reward-calc.ts` | 순수 계산 로직 (I/O 없음, 결정적) |
 | `arena-reward-sources.ts` | `tools/9c/lib/arena-reward-sources.ts` | 랭킹/스테이킹/용기패스 조회 어댑터 (API + CSV 폴백) |
 | `arena-network.ts` | `tools/9c/lib/arena-network.ts` | 네트워크별 호스트·planet-id 매핑 (스킴 2종, 혼동 주의) |
+| `arena-reward-png.ts` | `tools/9c/lib/arena-reward-png.ts` | SVG 빌드 + `@resvg/resvg-js`로 PNG 래스터화 (근사 재현) |
 | 골든 픽스처 | `tools/9c/fixtures/arena-reward-table.golden.json` | Odin S39 / Heimdall CS9, 라이브로 실측·교차검증됨 |
 | 회귀 검증기 | `tools/9c/fixtures/verify-arena-reward-table.ts` | CLI를 실제로 실행해 골든 픽스처와 대조 (`--live` 옵션으로 라이브 API까지 검증) |
-| 유닛 테스트 | `tools/9c/lib/arena-reward-calc.test.ts` | `bun test`. 순수 계산 로직을 골든 픽스처로 검증 |
+| 유닛 테스트 | `tools/9c/lib/*.test.ts` | `bun test`. 계산 로직 + SVG 빌더를 골든 픽스처로 검증 |
 
-실행: `bun test tools/9c/lib/arena-reward-calc.test.ts` (28 pass) / `bun run tools/9c/fixtures/verify-arena-reward-table.ts [--live]`.
+의존성: `@resvg/resvg-js`(PNG 래스터화, 저장소 루트 `package.json`) — `bun install` 필요.
+
+실행: `bun test tools/9c/lib/` (31 pass) / `bun run tools/9c/fixtures/verify-arena-reward-table.ts [--live]`.
 
 ---
 
@@ -50,9 +53,12 @@ description: Nine Chronicles 아레나 시즌 상금 표를 계산하고 검증�
        닿고, 거기에 절삭까지 겹쳐 항상 조금 못 미친다. 등호로 두면 매 시즌 오탐이 난다.
     6. 백엔드는 인원 합(500)·비율 합(100%) 불변식을 **검증하지 않는다.** 어긋난 설정을 넣어도 그대로
        계산된다 — 이 스킬이 대신 잡는다.
-- **범위 밖**: 시즌 등록(`ManageSeasons` 9개 입력), NCG 지급 서명·전송, 디스코드 공지, PNG 렌더링은
-  이 스킬이 하지 않는다(PNG는 스펙 문서 §7-2에 레이아웃이 정의돼 있지만 이번 착수 범위에서 제외 —
-  JSON/텍스트 표로 사람이 검수하기에 충분하다고 판단, 근사 재현 PNG는 후속 작업).
+- **범위 밖**: 시즌 등록(`ManageSeasons` 9개 입력), NCG 지급 서명·전송, 디스코드 공지는 이 스킬이 하지
+  않는다. PNG는 만든다(스펙 문서 §7-2 레이아웃 근사 재현) — 단 **"티켓 정보" 블록은 뺐다.** 시즌
+  타입별 문구 틀 확보는 `arena-announce`(3순위)의 값 차단 항목이라, 문구 없이 숫자만 넣으면 완성된
+  것처럼 보이지만 실제로는 틀린 레이아웃이 된다. "블록 정보"(시작/종료 블록)는 넣되 **추정 날짜는
+  안 넣는다** — 블록↔시간 환산은 `arena-season-preview`가 만들 공용 모듈(§6-3) 소관이라 여기서
+  중복 구현하지 않는다.
 - **시작 전 필수 확인**: 이 스킬은 몇 가지 미해결 항목 위에 있다. 맨 아래 "아직 해소되지 않은 것"을
   먼저 본다.
 
@@ -147,6 +153,12 @@ bun run tools/9c/arena-reward-table.ts \
   --pool 400000 --percentages 7,8,7,9,12,18,18,12,6,3 --players 2,3,4,6,10,25,37,38,125,250 \
   --staking-lv2 0.5 --staking-lv3 1.0 --courage-pass 1.2 \
   --courage-pass-csv ./courage-pass.csv
+
+# PNG까지 (다른 플래그와 함께 --png <경로>만 추가하면 됨)
+bun run tools/9c/arena-reward-table.ts --table-only \
+  --pool 400000 --percentages 7,8,7,9,12,18,18,12,6,3 --players 2,3,4,6,10,25,37,38,125,250 \
+  --staking-lv2 0.5 --staking-lv3 1.0 --courage-pass 1.2 \
+  --png ./odin-s39-rewards.png
 ```
 
 `--json` 없이 실행하면 사람이 읽기 좋은 표 + 불변식 리포트를 콘솔에 출력한다. 결과의 `title`은
@@ -169,12 +181,12 @@ bun run tools/9c/arena-reward-table.ts \
 
 | 항목 | 상태 |
 | --- | --- |
-| Odin S39 / Heimdall CS9 골든 픽스처 셀 값(10그룹×6열) 오차 없이 재현 | ✅ `bun test tools/9c/lib/arena-reward-calc.test.ts` (28 pass, 314 assertions) |
+| Odin S39 / Heimdall CS9 골든 픽스처 셀 값(10그룹×6열) 오차 없이 재현 | ✅ `bun test tools/9c/lib/` (31 pass, 404 assertions) |
 | CLI가 라이브 API로 같은 두 시즌을 재현(시즌 메타·참가자 수) | ✅ `bun run tools/9c/fixtures/verify-arena-reward-table.ts --live` |
 | CSV 폴백(스테이킹+용기패스) 경로가 API와 동일한 결과를 냄 | ✅ 수동 검증 — Odin S39 rank1("Mazi")에 스테이킹 lv3+용기패스 CSV를 먹였더니 골든 픽스처의 CP+St3(14,000)와 정확히 일치 |
 | 인원/비율 불변식이 깨진 설정에서 FATAL로 잡음 | ✅ `arena-reward-calc.test.ts`의 "invariant checks catch broken configs" 스위트 |
+| PNG 렌더링 (스펙 §7-2 레이아웃 근사 재현) | ✅ `arena-reward-png.ts` — 골든 픽스처 두 시즌 모두 육안 확인(제목·10그룹·합계 행 전부 일치). **티켓 정보 블록·추정 날짜는 의도적으로 제외**(스코프 노트 위 참고) |
 | 용기패스 API(JWT) 실사용 | ❌ 미해결 — 시크릿 미보유, CSV 폴백만 실사용 가능 |
-| PNG 렌더링 | ❌ 이번 착수 범위에서 제외 (JSON/텍스트 표로 대체) |
 
 ---
 
@@ -208,6 +220,8 @@ bun run tools/9c/arena-reward-table.ts \
 | 항목 | 상태 | 필요한 것 |
 | --- | --- | --- |
 | 용기패스 API 실사용 | 시크릿 미보유 | `NC_MAINNET_SEASONPASS_JWT_KEY` 별도 전달 — 받으면 `fetchCouragePassEntries`의 스텁만 채우면 됨(호출 형태는 이미 정의돼 있음) |
-| PNG 렌더링(스펙 문서 §7-2 레이아웃) | 미착수 | 필요성 재확인 후 착수 — 지금은 JSON/텍스트 표로 사람이 검수 가능 |
+| PNG의 "티켓 정보" 블록 | 의도적으로 미포함(스코프 노트, §2 위 참고) | `arena-announce`가 시즌 타입별 문구 틀을 확보하면 그때 같이 재검토 |
+| PNG의 추정 날짜(블록→시간 환산) | 의도적으로 미포함 | `arena-season-preview`가 공용 블록타임 모듈(§6-3)을 만들면 그걸 가져다 씀 — 여기서 따로 구현 안 함 |
+| PNG가 실제 백오피스 산출물과 시각적으로 얼마나 비슷한지 | 미확인 — 이 세션은 스펙 문서 §7-2의 텍스트 설명만 근거로 만듦, 실제 샘플 PNG(Heimdall CS9·Odin S39)를 직접 보고 대조한 적 없음 | 실물 샘플과 나란히 놓고 비교 |
 | `/leaderboard/completed`의 캐시-지연 400이 정말 일시적인지 | 추정(재시도로 통과하는 사례를 아직 직접 관측 못함 — 오래된 시즌에서 우회 확인만 함) | 시즌 종료 직후 실제로 이 스킬을 돌려서 재시도가 통과하는지 관측 |
 | 스테이킹 CSV 폴백 포맷 | 이 스킬이 임의로 정의(`agent_address,deposit`) — 백엔드에 대응 포맷 없음 | 실사용 전 담당자 검토 |
