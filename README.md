@@ -20,3 +20,17 @@
 검증·초안 생성까지만 한다.
 
 ## 2. 정규 운영 업데이트
+
+전체 설계(왜 자동화는 "이슈 초안 → 승인 게이트"까지만 하고 배포·발행은 항상 사람인지, 8개
+스크립트 중 왜 3개만 1차 필수인지)는 설계 문서를 참고. 지금 구현된 건 그중 **권한 승인 없이
+바로 착수 가능했던 한 조각**뿐이다 — 나머지(밸런스 시트 파이프라인 3종, `Event.json` 스냅샷)는
+Vault/S3 권한 승인 대기 중이라 착수하지 않았다.
+
+| 스킬 | 역할 | 상태 |
+| --- | --- | --- |
+| [`release-guard`](.claude/skills/release-guard/SKILL.md) | 깃북 릴리즈 노트 vs 메인넷 APV vs 인게임 공지판 일관성 대조 | 부분 구현 — 일관성·헤드 대조만, `Event.json` 스냅샷은 권한 대기 |
+| `spec-to-datasheet` / `datasheet-validate` / `datasheet-to-csv` | 밸런스 시트 파이프라인(1차 필수 3종) | 미착수 — 밸런스 시트(Vault) 접근 권한 승인 대기 |
+
+도구 코드는 `tools/9c/release-guard.ts` + `tools/9c/lib/release-guard.ts`. 실행 즉시 실제
+프로덕션 상태(2026-08-30/31 기준, 인게임 공지판이 깃북보다 2차수 뒤처진 상태)를 FATAL로
+잡아낸다 — 조사 근거는 [`references/release-guard-investigation.md`](.claude/skills/release-guard/references/release-guard-investigation.md).
