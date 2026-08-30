@@ -21,6 +21,9 @@ export interface NetworkInfo {
   readonly arenaServiceHost: string | null;
   readonly garagePlanetName: string;
   readonly planetId: string;
+  /** Mimir GraphQL host — used by arena-block-time.ts. null where Mimir doesn't cover the
+   *  network (Thor: no mimir entry at all, consistent with no arena/season presence). */
+  readonly mimirHost: string | null;
 }
 
 const NETWORKS: Record<ArenaNetwork, NetworkInfo> = {
@@ -29,21 +32,26 @@ const NETWORKS: Record<ArenaNetwork, NetworkInfo> = {
     arenaServiceHost: "https://odin-arena.9c.gg",
     garagePlanetName: "Odin",
     planetId: "0x000000000000",
+    mimirHost: "https://odin-mimir.9c.gg/graphql",
   },
   heimdall: {
     network: "heimdall",
     arenaServiceHost: "https://heimdall-arena.9c.gg",
     garagePlanetName: "Heimdall",
     planetId: "0x000000000001",
+    mimirHost: "https://heimdall-mimir.9c.gg/graphql",
   },
   thor: {
     // Confirmed 2026-08-30: thor-arena.9c.gg does not resolve, and Thor isn't in the
     // devcontainer firewall allowlist either. Sign/Stage buttons exist for Thor in the
     // settlement UI (payout path only) but there is no season/leaderboard read path.
+    // No Mimir instance either (absent from the reference planets list this was checked
+    // against) — consistent with Thor arena data being DB-only, not exposed live anywhere.
     network: "thor",
     arenaServiceHost: null,
     garagePlanetName: "Thor",
     planetId: "0x000000000003",
+    mimirHost: null,
   },
 };
 
@@ -64,4 +72,12 @@ export function requireArenaServiceHost(network: ArenaNetwork): string {
   const info = getNetworkInfo(network);
   if (!info.arenaServiceHost) throw new UnsupportedNetworkError(network);
   return info.arenaServiceHost;
+}
+
+export function requireMimirHost(network: ArenaNetwork): string {
+  const info = getNetworkInfo(network);
+  if (!info.mimirHost) {
+    throw new Error(`${network} 네트워크는 Mimir 인덱서가 없어 블록↔시간 환산을 할 수 없습니다.`);
+  }
+  return info.mimirHost;
 }
