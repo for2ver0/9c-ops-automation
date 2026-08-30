@@ -120,6 +120,29 @@ bun run tools/9c/arena-season-preview.ts --network odin --season-group-id 39 --a
   --verify-season
 ```
 
+### 3-1. `arena-reward-table`와 이어 쓰는 실제 순서
+
+`Total Prize`(이 스킬의 입력)와 `RankingPool`(`arena-reward-table`의 입력)은 스펙 §6-2가 확인한 대로
+코드로 연결돼 있지 않다 — 두 도구에 각자 따로 입력하는 숫자다. 실제로 새 시즌을 준비할 때는 이
+순서로 쓴다:
+
+1. **담당자가 이번 시즌 `RankingPool`·배분 비율·배수를 정해서 `arena-reward-table --table-only`로
+   상금 표를 먼저 만들고 확정한다** (스펙 §5: "명세에서: total_prize 하나뿐" — RankingPool 결정이
+   먼저 일어난다는 뜻).
+2. **그 `RankingPool` 값을 이 스킬의 `--total-prize`와 `--reward-table-pool`에 동일하게 넘긴다**:
+   ```bash
+   bun run tools/9c/arena-season-preview.ts --network odin --season-group-id 46 --arena-type SEASON \
+     --season-start-block 20265224 --round-interval 10800 --round-count 14 \
+     --required-medal-count 0 --total-prize 400000 --battle-policy-id 4 --refresh-policy-id 4 \
+     --reward-table-pool 400000
+   ```
+   `--total-prize`는 "ManageSeasons에 실제로 입력할 값"이고 `--reward-table-pool`은 "그게
+   `arena-reward-table`에서 정한 값과 같은지 대조할 기준"이다 — 이 예시처럼 둘을 항상 같은 값으로
+   주면 `total-prize-vs-reward-table-pool` 체크가 자연히 OK로 나온다. 일부러 다른 값을 실험하고
+   싶을 때만 둘을 다르게 준다.
+3. 여기서 나온 리포트에 FATAL이 없으면, 같은 9개 값을 그대로 `ManageSeasons` "Add New Season"
+   화면에 입력한다 (이 스킬은 등록을 대신 하지 않는다 — §0 범위 확인).
+
 ## 4. 판정 기준
 
 | 등급 | 이 스킬에서 실제로 나오는 항목 |
@@ -173,4 +196,4 @@ FATAL을 억지로 만들면 매번 오탐이 나거나 거짓 확신을 준다.
 | ~~날짜 추정치의 실제 정확도~~ | ✅ **해소됨** (2026-08-30, 담당자 백테스트 + `--verify-season` 도구화) — 위 §5·§6-4 참고 | — |
 | Thor의 블록타임 | 미확인·확인 불가 — Thor는 Mimir 자체가 없어 이 스킬이 애초에 동작 안 함(`requireMimirHost`가 즉시 에러) | Thor용 Mimir가 생기면 재검토 |
 | gap 발생이 "무조건 오류"인지 "의도적 공백 허용"인지 | 담당자 정책 미확인(스펙 §6-2) | 담당자 확인 — 확인되면 이 스킬의 gap 문구를 조건부로 조정 |
-| `--reward-table-pool` 연동 워크플로 | 설계만 있고 실사용 경로(두 스킬을 어떻게 이어 쓸지) 미정 | 실제 운영 시 `arena-reward-table` 실행 순서와 어떻게 엮을지 결정 |
+| ~~`--reward-table-pool` 연동 워크플로~~ | ✅ **해소됨** (2026-08-30) — §3-1에 실제 순서(RankingPool 확정 → 동일 값을 `--total-prize`/`--reward-table-pool`에 전달 → FATAL 없으면 ManageSeasons에 등록) 문서화, 라이브로 재현 확인 | — |
