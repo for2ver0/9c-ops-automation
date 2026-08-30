@@ -15,9 +15,16 @@
  * as part of the real backoffice table image. That needs season-type-specific wording
  * templates, which is arena-announce's job (§6-1: "티켓 수치를 라이브 정책 값과 대사" is
  * skill 3's role, not this one's) — including it here without the real wording would
- * look complete but be wrong. Block info (start/end block) IS included; estimated dates
- * are NOT — block-to-date conversion is explicitly a shared module owned by
- * arena-season-preview (spec doc §6-3), not duplicated here.
+ * look complete but be wrong (confirmed after building arena-announce: ticket prices
+ * essentially never change and don't appear in routine announcements anyway, so this
+ * exclusion turned out to be the right call, not just a temporary one).
+ *
+ * Block info (start/end block) IS included, and — since arena-season-preview's shared
+ * arena-block-time.ts module now exists (it didn't when this file was first written) —
+ * estimated dates are too, when the caller supplies them. This module still does NOT do
+ * its own block-to-date conversion; that stays arena-season-preview's job (spec §6-3). A
+ * caller without a date estimate handy can pass `dates: null` and the PNG falls back to
+ * block numbers only, same as before.
  */
 import { Resvg } from "@resvg/resvg-js";
 import type { RewardTier, TierGroup } from "./arena-reward-calc";
@@ -28,6 +35,15 @@ export interface RewardTablePngInput {
   readonly tiers: readonly RewardTier[];
   readonly rankingPool: number;
   readonly season: { readonly startBlock: number; readonly endBlock: number } | null;
+  /** Optional — caller supplies these from arena-block-time.ts's estimateDateForBlock.
+   *  null (or omitted) renders block numbers only, matching this module's original
+   *  behavior before the shared block-time module existed. */
+  readonly dates?: {
+    readonly start: Date;
+    readonly startMarginMinutes: number;
+    readonly end: Date;
+    readonly endMarginMinutes: number;
+  } | null;
 }
 
 const COLORS = {
@@ -53,17 +69,22 @@ function fmt(n: number): string {
   return n.toLocaleString("en-US");
 }
 
+function fmtDate(d: Date): string {
+  return d.toISOString().slice(0, 16).replace("T", " ") + " UTC";
+}
+
 /** Pure SVG builder — no rasterization, so this alone is unit-testable without the
  *  native rasterizer dependency. */
 export function renderRewardTableSvg(input: RewardTablePngInput): string {
-  const { title, groups, tiers, rankingPool, season } = input;
+  const { title, groups, tiers, rankingPool, season, dates } = input;
 
   const colWidths = [110, 90, 100, 140, 110, 130, 130, 130, 130, 130];
   const tableWidth = colWidths.reduce((a, b) => a + b, 0);
   const marginX = 60;
   const titleY = 70;
   const blockInfoY = season ? 105 : titleY + 20;
-  const tableTop = blockInfoY + 40;
+  const dateInfoY = season && dates ? blockInfoY + 24 : blockInfoY;
+  const tableTop = dateInfoY + 40;
   const rowHeight = 40;
   const headerHeight = 46;
   const rows = groups.length + 1; // +1 totals row
@@ -139,8 +160,14 @@ export function renderRewardTableSvg(input: RewardTablePngInput): string {
   }).join("");
 
   const blockInfoSvg = season
-    ? `<text x="${width / 2}" y="${blockInfoY}" font-size="16" fill="${COLORS.bodyText}" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">Block ${fmt(season.startBlock)} - ${fmt(season.endBlock)} (추정 날짜: 블록타임 실측 전까지 미표기)</text>`
+    ? `<text x="${width / 2}" y="${blockInfoY}" font-size="16" fill="${COLORS.bodyText}" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">Block ${fmt(season.startBlock)} - ${fmt(season.endBlock)}</text>`
     : "";
+  const dateInfoSvg =
+    season && dates
+      ? `<text x="${width / 2}" y="${dateInfoY}" font-size="13" fill="${COLORS.frameInner}" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">추정 ${fmtDate(dates.start)} (±${dates.startMarginMinutes.toFixed(0)}분) - ${fmtDate(dates.end)} (±${dates.endMarginMinutes.toFixed(0)}분)</text>`
+      : season
+        ? `<text x="${width / 2}" y="${dateInfoY}" font-size="13" fill="${COLORS.frameInner}" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">추정 날짜: 미표기 (블록타임 모델 미제공)</text>`
+        : "";
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
   <rect x="0" y="0" width="${width}" height="${height}" fill="${COLORS.background}"/>
@@ -148,6 +175,7 @@ export function renderRewardTableSvg(input: RewardTablePngInput): string {
   <rect x="22" y="22" width="${width - 44}" height="${height - 44}" fill="none" stroke="${COLORS.frameInner}" stroke-width="1"/>
   <text x="${width / 2}" y="${titleY}" font-size="26" fill="${COLORS.headerText}" text-anchor="middle" font-weight="700" font-family="Georgia, 'Times New Roman', serif">${esc(title)}</text>
   ${blockInfoSvg}
+  ${dateInfoSvg}
   <rect x="${marginX}" y="${tableTop}" width="${tableWidth}" height="${headerHeight}" fill="${COLORS.headerRow}"/>
   ${headerCellsSvg}
   ${rowsSvg}
