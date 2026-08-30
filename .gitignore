@@ -1,1 +1,24 @@
 node_modules/
+
+# secrets / local env — this project's tools read live JWT/API keys
+# (NC_MAINNET_SEASONPASS_JWT_KEY, X-API-Key) that get supplied via env vars
+.env
+.env.*
+!.env.example
+
+# tool-generated local artifacts — arena-reward-table --png, arena-settlement-check
+# --log-file, and *-csv inputs/outputs are always explicit CLI paths, never written
+# here by default, but keep the repo root safe if someone points one in-tree
+*.png
+*.jsonl
+*.log
+*.csv
+
+# bun test coverage
+coverage/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
