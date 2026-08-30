@@ -1,0 +1,8 @@
+{
+  "name": "9c-ops-automation",
+  "private": true,
+  "description": "Nine Chronicles 운영 자동화 스킬/도구 모음 (tools/9c). bun 런타임 기준.",
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2"
+  }
+}
