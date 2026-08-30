@@ -116,7 +116,8 @@ bun run tools/9c/arena-announce.ts \
 | 메달 문단 조건: 페어에 CHAMPIONSHIP + `requiredMedalCount==0`. 과거 챔피언십은 실제 메달 요구치가 있었음(odin g16=60, heimdall g8=50), 0으로 바뀐 건 odin g17/heimdall g9부터 | 담당자 DB 조사 |
 | 링크 대상 URL은 `prize_detail_url`(DB 고정, 디스코드 채널)과 다른 별도 보상 페이지 — 자동 생성 불가 | 담당자 확인, 스펙 §5-1과 교차 |
 | 티켓 정책 12개 row 전부 `created_at==updated_at`, 마지막 정책 교체 2025-10-01 — 최근 11개월 가격 변경 이벤트 0건 | 담당자 DB 타임스탬프 조사 |
-| **heimdall 진행 중 시즌(sid=42, SEASON)의 `seasonGroupId=0`** — 정상이면 24여야 함(g23 다음), 등록 누락으로 추정 | 담당자 발견, 이 세션이 라이브로 재확인·CLI FATAL 검증(2026-08-30) |
+| **heimdall 진행 중 시즌(sid=42, SEASON)의 `seasonGroupId=0`** — 정상이면 24여야 함(g23 다음) | 담당자 발견, 이 세션이 라이브로 재확인·CLI FATAL 검증(2026-08-30) |
+| **위 버그의 근본 원인 확정**: `ManageSeasons.razor:267`의 `private int newSeasonGroupId;` — 초기화 없이 선언된 Razor 컴포넌트 필드라 C# 기본값 0으로 시작하고, `@bind`로 입력창과 연결돼 그 칸을 안 채우면 조용히 0으로 제출됨. "등록 누락으로 추정"이 아니라 소스로 확인된 메커니즘 | 이 세션이 `ArenaService`(공개 레포, `github.com/planetarium/ArenaService`) 소스를 직접 클론해 확인(2026-08-30). ⚠️ 최초 확인 때는 `Season.cs` EF 모델의 `= 0` 기본값을 원인으로 잘못 짚었다가, `AddSeasonWithRoundsAsync`가 `seasonGroupId`를 항상 필수 인자로 받는다는 걸 재확인하고 정정함 — 진짜 원인은 한 겹 위(Razor 폼)에 있었음 |
 | 위 버그는 `seasonGroupId==0` 체크뿐 아니라 "직전 동일 타입 시즌 번호+1과 다름" 체크로도 독립적으로 잡힘(`checkSequentialSeasonNumber`) — 두 체크가 같은 실제 사례에서 동시에 WARN/FATAL을 냄을 라이브로 확인 | 담당자 제안, 이 세션이 구현·라이브 검증(2026-08-30) |
 | "직전 시즌" 조회는 `seasonGroupId==0`인 행(OFF_SEASON뿐 아니라 heimdall sid=1·sid=42 같은 이상치도 포함)을 반드시 제외해야 함 — 안 그러면 heimdall sid=42(groupId=0) 다음에 등록될 진짜 시즌이 "직전=0 → 기대값 1"로 오탐남. 라이브 데이터로 시뮬레이션해 실제로 그렇게 됨을 확인(수정 전 `previousSameType`이 sid=42를 골랐음) | 담당자 리뷰로 배포 전 발견, 이 세션이 수정·시뮬레이션 검증(2026-08-30) |
 | 링크 줄 앞의 보이지 않는 문자는 U+2060 WORD JOINER(UTF-8 `e2 81 a0`) — ZWJ(U+200D)도 ZWSP(U+200B)도 아님. 소스·테스트 파일 모두 hexdump로 정확한 코드포인트 확인, 상수(`WORD_JOINER`)로 추출해 재발 방지 | 담당자 바이트 분석, 이 세션이 hexdump로 재확인(2026-08-30) |

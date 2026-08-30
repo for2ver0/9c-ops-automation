@@ -94,7 +94,20 @@ export interface AnnounceCheck {
  *  be a data-entry mistake (real case caught 2026-08-30: heimdall sid=42, a live SEASON,
  *  had seasonGroupId=0 — publishing that verbatim would have announced "Season 0"
  *  publicly, which is exactly the kind of un-take-backable mistake the spec doc's "외부
- *  공개 게시는 되돌릴 수 없다" principle warns about). */
+ *  공개 게시는 되돌릴 수 없다" principle warns about).
+ *
+ *  Root cause CONFIRMED directly from source (2026-08-30) — and corrected once already.
+ *  An earlier pass of this comment blamed the EF model's
+ *  `SeasonGroupId { get; set; } = 0;` default (ArenaService.Shared/Models/Season.cs). That
+ *  default is real but isn't actually what's responsible: `AddSeasonWithRoundsAsync`
+ *  always takes seasonGroupId as an explicit required parameter, so the model-level
+ *  default never gets a chance to apply. The real mechanism is one layer up, in the Blazor
+ *  form itself (ArenaService.BackOffice/Components/Pages/ManageSeasons.razor:267):
+ *  `private int newSeasonGroupId;` — an uninitialized component field, defaulting to 0 per
+ *  ordinary C# rules, bound to the number input via `@bind="newSeasonGroupId"` (line 198).
+ *  Leave that field untouched and it submits as 0 — indistinguishable at a glance from
+ *  OFF_SEASON's legitimate 0. This was "probably a data-entry mistake" before; it's now a
+ *  confirmed mechanism — just not the one first claimed here. */
 export function checkAnnouncementPair(odin: SeasonForAnnouncement, heimdall: SeasonForAnnouncement): AnnounceCheck[] {
   const checks: AnnounceCheck[] = [];
 
@@ -106,7 +119,7 @@ export function checkAnnouncementPair(odin: SeasonForAnnouncement, heimdall: Sea
       level: s.seasonGroupId === 0 ? "FATAL" : "OK",
       detail:
         s.seasonGroupId === 0
-          ? `${networkLabel(s.network)} ${typeLabel(s.arenaType)}의 seasonGroupId가 0입니다 — OFF_SEASON이 아닌데 0이면 등록 시 번호 누락일 가능성이 높습니다(2026-08-30 실제로 heimdall sid=42에서 발견). "Season 0"으로 그대로 공지되지 않도록 백오피스에서 실제 번호를 확인하고 고친 뒤 다시 실행하세요.`
+          ? `${networkLabel(s.network)} ${typeLabel(s.arenaType)}의 seasonGroupId가 0입니다 — ManageSeasons.razor의 폼 필드(newSeasonGroupId)가 초기화 없이 선언돼 있어 기본값이 0이고, 그 칸을 안 채우면 조용히 0으로 제출됩니다(소스로 확인됨, 2026-08-30). OFF_SEASON도 0을 쓰기 때문에 겉보기엔 구분이 안 갑니다(실제로 heimdall sid=42에서 발견). "Season 0"으로 그대로 공지되지 않도록 백오피스에서 실제 번호를 확인하고 고친 뒤 다시 실행하세요.`
           : `${s.seasonGroupId}`,
     });
   }
