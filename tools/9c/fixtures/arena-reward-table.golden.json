@@ -1,0 +1,226 @@
+{
+  "_comment": "Golden fixture — arena-reward-table. 회귀 테스트용 고정 입력/기대출력.",
+  "generatedAt": "2026-08-30",
+  "generatedBy": "cross-checked against live odin-arena.9c.gg / heimdall-arena.9c.gg (leaderboard/completed, seasons) in this session",
+  "formulaSource": "NineChronicles.Backoffice ArenaRewardService.GenerateTierGroups() / ConvertTierGroupsToRewardTiers()",
+  "notes": [
+    "paid.* = 유저가 실제로 받는 int 절삭값 (콘솔 표/PNG 에 찍히는 값).",
+    "storedTier.* = 백오피스 저장 형식. basicReward + <조건>Reward(보너스 델타) = paid.<조건>.",
+    "두 시즌 모두 실제 참가자 수가 500 미만이라 하위 구간이 비어 있다 (bracketOccupancy).",
+    "maxPayoutAfterTruncation 은 상한이지 실지급 총액이 아니다. 등호 검사 금지.",
+    "두 시즌 모두 Season.Id가 40으로 동일 (네트워크가 다른 별개 시즌) — 픽스처 키는 id가 아니라 network+seasonGroupId로 잡는다.",
+    "이 세션에서 odin-arena.9c.gg/heimdall-arena.9c.gg 라이브 API로 season 메타데이터·leaderboard rank1/2 주소·totalPrize를 직접 재조회해 아래 값과 일치 확인함(2026-08-30)."
+  ],
+  "fixtures": [
+    {
+      "key": "odin-season-39",
+      "label": "Odin S39",
+      "inputs": {
+        "network": "odin",
+        "seasonType": "SEASON",
+        "seasonNumber": 39,
+        "config": {
+          "rankingPool": 400000,
+          "rankingPoolSource": "ArenaService totalPrize (season.id=40) — live-verified",
+          "stakingLv2Multiplier": 0.5,
+          "stakingLv3Multiplier": 1.0,
+          "couragePassMultiplier": 1.0,
+          "percentages": [7, 8, 7, 9, 12, 18, 18, 12, 6, 3],
+          "players": [2, 3, 4, 6, 10, 25, 37, 38, 125, 250]
+        },
+        "season": {
+          "arenaServiceHost": "https://odin-arena.9c.gg",
+          "seasonId": 40,
+          "seasonGroupId": 39,
+          "arenaType": "SEASON",
+          "startBlock": 19260824,
+          "endBlock": 19412023
+        },
+        "ranking": {
+          "note": "상금 표 계산은 랭킹 데이터를 입력으로 쓰지 않는다 (구간·비율·풀만 사용). 아래는 지급 단계(rank -> 보상 매핑) 검증용 실측 컨텍스트다.",
+          "source": "GET https://odin-arena.9c.gg/leaderboard/completed?seasonId=40",
+          "totalParticipants": 416,
+          "maxRank": 416,
+          "topScore": 3683,
+          "bottomScore": 871,
+          "bracketOccupancy": [
+            { "rankGroup": "1-2", "slots": 2, "actualPlayers": 2, "unfilled": 0 },
+            { "rankGroup": "3-5", "slots": 3, "actualPlayers": 3, "unfilled": 0 },
+            { "rankGroup": "6-9", "slots": 4, "actualPlayers": 4, "unfilled": 0 },
+            { "rankGroup": "10-15", "slots": 6, "actualPlayers": 5, "unfilled": 1 },
+            { "rankGroup": "16-25", "slots": 10, "actualPlayers": 11, "unfilled": -1 },
+            { "rankGroup": "26-50", "slots": 25, "actualPlayers": 25, "unfilled": 0 },
+            { "rankGroup": "51-87", "slots": 37, "actualPlayers": 37, "unfilled": 0 },
+            { "rankGroup": "88-125", "slots": 38, "actualPlayers": 38, "unfilled": 0 },
+            { "rankGroup": "126-250", "slots": 125, "actualPlayers": 125, "unfilled": 0 },
+            { "rankGroup": "251-500", "slots": 250, "actualPlayers": 166, "unfilled": 84 }
+          ],
+          "sampleHead": [
+            { "rank": 1, "avatarAddress": "0xcf1270e34b683fb42c9c4339e2a72c3d474f8db4", "score": 3683 },
+            { "rank": 2, "avatarAddress": "0x2657596233b76392347b35913f212304855c352d", "score": 3658 }
+          ],
+          "tieHandling": {
+            "note": "LeaderboardRepository 는 동점 그룹 전원에게 그룹 내 '가장 낮은' 등수를 준다 (lastRank = processedCount + group.Count()). 그 위 등수는 결번이 된다. 결번이 구간 경계 위에 걸리면 해당 유저는 한 구간 아래 보상을 받는다.",
+            "tiedRankCount": 53,
+            "vacatedRankCount": 80,
+            "bracketCrossings": [
+              {
+                "sharedRank": 16, "tiedPlayers": 2, "vacatedRank": 15,
+                "wouldBeBracket": "10-15", "actualBracket": "16-25",
+                "basicIfVacatedRank": 2000, "basicAtSharedRank": 1600, "basicDelta": -400
+              }
+            ]
+          }
+        }
+      },
+      "expected": {
+        "title": "[ Odin ] Arena Season 39 Rewards",
+        "groups": [
+          { "rankGroup": "1-2", "minRank": 1, "maxRank": 2, "playerCount": 2, "rewardPercentage": 7, "groupReward": 28000,
+            "paid": { "basic": 4666, "staking2": 7000, "staking3": 9333, "couragePass": 9333, "couragePassStaking2": 11666, "couragePassStaking3": 14000 },
+            "storedTier": { "basicReward": 4666, "staking2Reward": 2334, "staking3Reward": 4667, "couragePassReward": 4667, "couragePassAndStaking2Reward": 7000, "couragePassAndStaking3Reward": 9334 } },
+          { "rankGroup": "3-5", "minRank": 3, "maxRank": 5, "playerCount": 3, "rewardPercentage": 8, "groupReward": 32000,
+            "paid": { "basic": 3555, "staking2": 5333, "staking3": 7111, "couragePass": 7111, "couragePassStaking2": 8888, "couragePassStaking3": 10666 },
+            "storedTier": { "basicReward": 3555, "staking2Reward": 1778, "staking3Reward": 3556, "couragePassReward": 3556, "couragePassAndStaking2Reward": 5333, "couragePassAndStaking3Reward": 7111 } },
+          { "rankGroup": "6-9", "minRank": 6, "maxRank": 9, "playerCount": 4, "rewardPercentage": 7, "groupReward": 28000,
+            "paid": { "basic": 2333, "staking2": 3500, "staking3": 4666, "couragePass": 4666, "couragePassStaking2": 5833, "couragePassStaking3": 7000 },
+            "storedTier": { "basicReward": 2333, "staking2Reward": 1167, "staking3Reward": 2333, "couragePassReward": 2333, "couragePassAndStaking2Reward": 3500, "couragePassAndStaking3Reward": 4667 } },
+          { "rankGroup": "10-15", "minRank": 10, "maxRank": 15, "playerCount": 6, "rewardPercentage": 9, "groupReward": 36000,
+            "paid": { "basic": 2000, "staking2": 3000, "staking3": 4000, "couragePass": 4000, "couragePassStaking2": 5000, "couragePassStaking3": 6000 },
+            "storedTier": { "basicReward": 2000, "staking2Reward": 1000, "staking3Reward": 2000, "couragePassReward": 2000, "couragePassAndStaking2Reward": 3000, "couragePassAndStaking3Reward": 4000 } },
+          { "rankGroup": "16-25", "minRank": 16, "maxRank": 25, "playerCount": 10, "rewardPercentage": 12, "groupReward": 48000,
+            "paid": { "basic": 1600, "staking2": 2400, "staking3": 3200, "couragePass": 3200, "couragePassStaking2": 4000, "couragePassStaking3": 4800 },
+            "storedTier": { "basicReward": 1600, "staking2Reward": 800, "staking3Reward": 1600, "couragePassReward": 1600, "couragePassAndStaking2Reward": 2400, "couragePassAndStaking3Reward": 3200 } },
+          { "rankGroup": "26-50", "minRank": 26, "maxRank": 50, "playerCount": 25, "rewardPercentage": 18, "groupReward": 72000,
+            "paid": { "basic": 960, "staking2": 1440, "staking3": 1920, "couragePass": 1920, "couragePassStaking2": 2400, "couragePassStaking3": 2880 },
+            "storedTier": { "basicReward": 960, "staking2Reward": 480, "staking3Reward": 960, "couragePassReward": 960, "couragePassAndStaking2Reward": 1440, "couragePassAndStaking3Reward": 1920 } },
+          { "rankGroup": "51-87", "minRank": 51, "maxRank": 87, "playerCount": 37, "rewardPercentage": 18, "groupReward": 72000,
+            "paid": { "basic": 648, "staking2": 972, "staking3": 1297, "couragePass": 1297, "couragePassStaking2": 1621, "couragePassStaking3": 1945 },
+            "storedTier": { "basicReward": 648, "staking2Reward": 324, "staking3Reward": 649, "couragePassReward": 649, "couragePassAndStaking2Reward": 973, "couragePassAndStaking3Reward": 1297 } },
+          { "rankGroup": "88-125", "minRank": 88, "maxRank": 125, "playerCount": 38, "rewardPercentage": 12, "groupReward": 48000,
+            "paid": { "basic": 421, "staking2": 631, "staking3": 842, "couragePass": 842, "couragePassStaking2": 1052, "couragePassStaking3": 1263 },
+            "storedTier": { "basicReward": 421, "staking2Reward": 210, "staking3Reward": 421, "couragePassReward": 421, "couragePassAndStaking2Reward": 631, "couragePassAndStaking3Reward": 842 } },
+          { "rankGroup": "126-250", "minRank": 126, "maxRank": 250, "playerCount": 125, "rewardPercentage": 6, "groupReward": 24000,
+            "paid": { "basic": 64, "staking2": 96, "staking3": 128, "couragePass": 128, "couragePassStaking2": 160, "couragePassStaking3": 192 },
+            "storedTier": { "basicReward": 64, "staking2Reward": 32, "staking3Reward": 64, "couragePassReward": 64, "couragePassAndStaking2Reward": 96, "couragePassAndStaking3Reward": 128 } },
+          { "rankGroup": "251-500", "minRank": 251, "maxRank": 500, "playerCount": 250, "rewardPercentage": 3, "groupReward": 12000,
+            "paid": { "basic": 16, "staking2": 24, "staking3": 32, "couragePass": 32, "couragePassStaking2": 40, "couragePassStaking3": 48 },
+            "storedTier": { "basicReward": 16, "staking2Reward": 8, "staking3Reward": 16, "couragePassReward": 16, "couragePassAndStaking2Reward": 24, "couragePassAndStaking3Reward": 32 } }
+        ],
+        "totals": { "playerCountSum": 500, "percentageSum": 100, "groupRewardSum": 400000, "maxPayoutAfterTruncation": 399957, "truncationResidual": 43 },
+        "invariants": [
+          { "id": "players-sum", "name": "sum(playerCount) == 500", "ok": true },
+          { "id": "percent-sum", "name": "sum(rewardPercentage) == 100", "ok": true },
+          { "id": "group-reward-sum", "name": "sum(groupReward) == RankingPool", "ok": true },
+          { "id": "payout-upper-bound", "name": "maxPayout <= RankingPool (등호 아님)", "ok": true }
+        ],
+        "exitCode": 0
+      }
+    },
+    {
+      "key": "heimdall-championship-9",
+      "label": "Heimdall CS9",
+      "inputs": {
+        "network": "heimdall",
+        "seasonType": "CHAMPIONSHIP",
+        "seasonNumber": 9,
+        "config": {
+          "rankingPool": 500000,
+          "rankingPoolSource": "ArenaService totalPrize (season.id=40) — live-verified",
+          "stakingLv2Multiplier": 0.5,
+          "stakingLv3Multiplier": 1.0,
+          "couragePassMultiplier": 1.0,
+          "percentages": [7, 8, 7, 9, 12, 18, 18, 12, 6, 3],
+          "players": [2, 3, 4, 6, 10, 25, 37, 38, 125, 250]
+        },
+        "season": {
+          "arenaServiceHost": "https://heimdall-arena.9c.gg",
+          "seasonId": 40,
+          "seasonGroupId": 9,
+          "arenaType": "CHAMPIONSHIP",
+          "startBlock": 10741181,
+          "endBlock": 10892380
+        },
+        "ranking": {
+          "note": "상금 표 계산은 랭킹 데이터를 입력으로 쓰지 않는다 (구간·비율·풀만 사용). 아래는 지급 단계(rank -> 보상 매핑) 검증용 실측 컨텍스트다.",
+          "source": "GET https://heimdall-arena.9c.gg/leaderboard/completed?seasonId=40",
+          "totalParticipants": 403,
+          "maxRank": 403,
+          "topScore": 3680,
+          "bottomScore": 905,
+          "bracketOccupancy": [
+            { "rankGroup": "1-2", "slots": 2, "actualPlayers": 2, "unfilled": 0 },
+            { "rankGroup": "3-5", "slots": 3, "actualPlayers": 2, "unfilled": 1 },
+            { "rankGroup": "6-9", "slots": 4, "actualPlayers": 5, "unfilled": -1 },
+            { "rankGroup": "10-15", "slots": 6, "actualPlayers": 6, "unfilled": 0 },
+            { "rankGroup": "16-25", "slots": 10, "actualPlayers": 10, "unfilled": 0 },
+            { "rankGroup": "26-50", "slots": 25, "actualPlayers": 25, "unfilled": 0 },
+            { "rankGroup": "51-87", "slots": 37, "actualPlayers": 37, "unfilled": 0 },
+            { "rankGroup": "88-125", "slots": 38, "actualPlayers": 38, "unfilled": 0 },
+            { "rankGroup": "126-250", "slots": 125, "actualPlayers": 125, "unfilled": 0 },
+            { "rankGroup": "251-500", "slots": 250, "actualPlayers": 153, "unfilled": 97 }
+          ],
+          "sampleHead": [
+            { "rank": 1, "avatarAddress": "0xcf1270e34b683fb42c9c4339e2a72c3d474f8db4", "score": 3680 },
+            { "rank": 2, "avatarAddress": "0x3a24f80fb9c081729840c79d34f239224f61c405", "score": 3652 }
+          ],
+          "tieHandling": {
+            "note": "LeaderboardRepository 는 동점 그룹 전원에게 그룹 내 '가장 낮은' 등수를 준다 (lastRank = processedCount + group.Count()). 그 위 등수는 결번이 된다. 결번이 구간 경계 위에 걸리면 해당 유저는 한 구간 아래 보상을 받는다.",
+            "tiedRankCount": 55,
+            "vacatedRankCount": 80,
+            "bracketCrossings": [
+              {
+                "sharedRank": 6, "tiedPlayers": 2, "vacatedRank": 5,
+                "wouldBeBracket": "3-5", "actualBracket": "6-9",
+                "basicIfVacatedRank": 4444, "basicAtSharedRank": 2916, "basicDelta": -1528
+              }
+            ]
+          }
+        }
+      },
+      "expected": {
+        "title": "[ Heimdall ] Arena Championship 9 Rewards",
+        "groups": [
+          { "rankGroup": "1-2", "minRank": 1, "maxRank": 2, "playerCount": 2, "rewardPercentage": 7, "groupReward": 35000,
+            "paid": { "basic": 5833, "staking2": 8750, "staking3": 11666, "couragePass": 11666, "couragePassStaking2": 14583, "couragePassStaking3": 17500 },
+            "storedTier": { "basicReward": 5833, "staking2Reward": 2917, "staking3Reward": 5833, "couragePassReward": 5833, "couragePassAndStaking2Reward": 8750, "couragePassAndStaking3Reward": 11667 } },
+          { "rankGroup": "3-5", "minRank": 3, "maxRank": 5, "playerCount": 3, "rewardPercentage": 8, "groupReward": 40000,
+            "paid": { "basic": 4444, "staking2": 6666, "staking3": 8888, "couragePass": 8888, "couragePassStaking2": 11111, "couragePassStaking3": 13333 },
+            "storedTier": { "basicReward": 4444, "staking2Reward": 2222, "staking3Reward": 4444, "couragePassReward": 4444, "couragePassAndStaking2Reward": 6667, "couragePassAndStaking3Reward": 8889 } },
+          { "rankGroup": "6-9", "minRank": 6, "maxRank": 9, "playerCount": 4, "rewardPercentage": 7, "groupReward": 35000,
+            "paid": { "basic": 2916, "staking2": 4375, "staking3": 5833, "couragePass": 5833, "couragePassStaking2": 7291, "couragePassStaking3": 8750 },
+            "storedTier": { "basicReward": 2916, "staking2Reward": 1459, "staking3Reward": 2917, "couragePassReward": 2917, "couragePassAndStaking2Reward": 4375, "couragePassAndStaking3Reward": 5834 } },
+          { "rankGroup": "10-15", "minRank": 10, "maxRank": 15, "playerCount": 6, "rewardPercentage": 9, "groupReward": 45000,
+            "paid": { "basic": 2500, "staking2": 3750, "staking3": 5000, "couragePass": 5000, "couragePassStaking2": 6250, "couragePassStaking3": 7500 },
+            "storedTier": { "basicReward": 2500, "staking2Reward": 1250, "staking3Reward": 2500, "couragePassReward": 2500, "couragePassAndStaking2Reward": 3750, "couragePassAndStaking3Reward": 5000 } },
+          { "rankGroup": "16-25", "minRank": 16, "maxRank": 25, "playerCount": 10, "rewardPercentage": 12, "groupReward": 60000,
+            "paid": { "basic": 2000, "staking2": 3000, "staking3": 4000, "couragePass": 4000, "couragePassStaking2": 5000, "couragePassStaking3": 6000 },
+            "storedTier": { "basicReward": 2000, "staking2Reward": 1000, "staking3Reward": 2000, "couragePassReward": 2000, "couragePassAndStaking2Reward": 3000, "couragePassAndStaking3Reward": 4000 } },
+          { "rankGroup": "26-50", "minRank": 26, "maxRank": 50, "playerCount": 25, "rewardPercentage": 18, "groupReward": 90000,
+            "paid": { "basic": 1200, "staking2": 1800, "staking3": 2400, "couragePass": 2400, "couragePassStaking2": 3000, "couragePassStaking3": 3600 },
+            "storedTier": { "basicReward": 1200, "staking2Reward": 600, "staking3Reward": 1200, "couragePassReward": 1200, "couragePassAndStaking2Reward": 1800, "couragePassAndStaking3Reward": 2400 } },
+          { "rankGroup": "51-87", "minRank": 51, "maxRank": 87, "playerCount": 37, "rewardPercentage": 18, "groupReward": 90000,
+            "paid": { "basic": 810, "staking2": 1216, "staking3": 1621, "couragePass": 1621, "couragePassStaking2": 2027, "couragePassStaking3": 2432 },
+            "storedTier": { "basicReward": 810, "staking2Reward": 406, "staking3Reward": 811, "couragePassReward": 811, "couragePassAndStaking2Reward": 1217, "couragePassAndStaking3Reward": 1622 } },
+          { "rankGroup": "88-125", "minRank": 88, "maxRank": 125, "playerCount": 38, "rewardPercentage": 12, "groupReward": 60000,
+            "paid": { "basic": 526, "staking2": 789, "staking3": 1052, "couragePass": 1052, "couragePassStaking2": 1315, "couragePassStaking3": 1578 },
+            "storedTier": { "basicReward": 526, "staking2Reward": 263, "staking3Reward": 526, "couragePassReward": 526, "couragePassAndStaking2Reward": 789, "couragePassAndStaking3Reward": 1052 } },
+          { "rankGroup": "126-250", "minRank": 126, "maxRank": 250, "playerCount": 125, "rewardPercentage": 6, "groupReward": 30000,
+            "paid": { "basic": 80, "staking2": 120, "staking3": 160, "couragePass": 160, "couragePassStaking2": 200, "couragePassStaking3": 240 },
+            "storedTier": { "basicReward": 80, "staking2Reward": 40, "staking3Reward": 80, "couragePassReward": 80, "couragePassAndStaking2Reward": 120, "couragePassAndStaking3Reward": 160 } },
+          { "rankGroup": "251-500", "minRank": 251, "maxRank": 500, "playerCount": 250, "rewardPercentage": 3, "groupReward": 15000,
+            "paid": { "basic": 20, "staking2": 30, "staking3": 40, "couragePass": 40, "couragePassStaking2": 50, "couragePassStaking3": 60 },
+            "storedTier": { "basicReward": 20, "staking2Reward": 10, "staking3Reward": 20, "couragePassReward": 20, "couragePassAndStaking2Reward": 30, "couragePassAndStaking3Reward": 40 } }
+        ],
+        "totals": { "playerCountSum": 500, "percentageSum": 100, "groupRewardSum": 500000, "maxPayoutAfterTruncation": 499947, "truncationResidual": 53 },
+        "invariants": [
+          { "id": "players-sum", "name": "sum(playerCount) == 500", "ok": true },
+          { "id": "percent-sum", "name": "sum(rewardPercentage) == 100", "ok": true },
+          { "id": "group-reward-sum", "name": "sum(groupReward) == RankingPool", "ok": true },
+          { "id": "payout-upper-bound", "name": "maxPayout <= RankingPool (등호 아님)", "ok": true }
+        ],
+        "exitCode": 0
+      }
+    }
+  ]
+}
