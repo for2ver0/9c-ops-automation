@@ -45,7 +45,7 @@ import {
   resolveSeasonId,
 } from "./lib/arena-reward-sources";
 import { getNetworkInfo, requireArenaServiceHost, requireMimirHost, type ArenaNetwork } from "./lib/arena-network";
-import { renderRewardTablePng } from "./lib/arena-reward-png";
+import { buildChampionshipTicketLines, buildSeasonTicketLines, renderRewardTablePng } from "./lib/arena-reward-png";
 import { estimateDateForBlock, measureBlockTimeModel } from "./lib/arena-block-time";
 
 interface Args {
@@ -65,6 +65,8 @@ interface Args {
   couragePassCsv?: string;
   configFile?: string;
   pngPath?: string;
+  ticketTotal?: number;
+  ticketSession?: number;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -120,6 +122,12 @@ function parseArgs(argv: string[]): Args {
         break;
       case "--png":
         args.pngPath = next();
+        break;
+      case "--ticket-total":
+        args.ticketTotal = Number(next());
+        break;
+      case "--ticket-session":
+        args.ticketSession = Number(next());
         break;
       default:
         throw new Error(`알 수 없는 옵션: ${a}`);
@@ -335,6 +343,21 @@ async function main() {
       }
     }
 
+    // Ticket numbers are never invented here — only rendered when the operator passed
+    // them explicitly via --ticket-total/--ticket-session, same "no silent defaults"
+    // rule as the reward config itself. Wording branches on season type (SEASON gets a
+    // per-session refresh bullet, CHAMPIONSHIP doesn't) per the operator, 2026-08-31.
+    let ticketInfo: Parameters<typeof renderRewardTablePng>[0]["ticketInfo"] = null;
+    if (args.ticketTotal !== undefined) {
+      if (args.seasonType === "CHAMPIONSHIP") {
+        ticketInfo = { lines: buildChampionshipTicketLines(args.ticketTotal) };
+      } else if (args.ticketSession !== undefined) {
+        ticketInfo = { lines: buildSeasonTicketLines(args.ticketTotal, args.ticketSession) };
+      } else {
+        console.error("--ticket-total은 있는데 --ticket-session이 없습니다 (SEASON 타입은 두 값 다 필요) — 티켓 정보 없이 진행합니다.");
+      }
+    }
+
     const png = renderRewardTablePng({
       title,
       groups,
@@ -342,6 +365,7 @@ async function main() {
       rankingPool: config.rankingPool,
       season: seasonMeta ? { startBlock: seasonMeta.startBlock, endBlock: seasonMeta.endBlock } : null,
       dates,
+      ticketInfo,
     });
     await Bun.write(args.pngPath, png);
     console.error(`PNG 저장: ${args.pngPath}`);
