@@ -79,6 +79,17 @@ export interface TierGroup {
   readonly fullSum: number;
 }
 
+/** Which of the 6 paid amounts a group's rounding is boundary-sensitive on — see
+ *  `boundaryRiskFields` below. Field names match RewardTier's "paid" keys, not its
+ *  stored-delta keys. */
+export type PaidField =
+  | "basic"
+  | "staking2"
+  | "staking3"
+  | "couragePass"
+  | "couragePassStaking2"
+  | "couragePassStaking3";
+
 export interface RewardTier {
   readonly rankRangeMin: number;
   readonly rankRangeMax: number;
@@ -90,6 +101,139 @@ export interface RewardTier {
   readonly couragePassReward: number;
   readonly couragePassAndStaking2Reward: number;
   readonly couragePassAndStaking3Reward: number;
+  /** Paid amounts whose exact (infinite-precision) value lands on — or extremely close to —
+   *  a whole number. CONFIRMED 2026-08-31: in that situation, this engine's IEEE-754 double
+   *  arithmetic and the live backend's C# `decimal` arithmetic (ArenaRewardService.cs, all
+   *  fields `decimal`) can round the intermediate division differently and disagree by
+   *  exactly 1 on the floored result. Real example, reproduced by directly running
+   *  CalculateRewardsWithDynamicTable: pool 400,000, group "6-9", courage+staking-lv3 —
+   *  this engine floors to 7000 (the mathematically exact value), the live backend floors to
+   *  6999. This engine is not "wrong" here — 7000 IS the exact value — but the backend's
+   *  actual payout is what operators need to know, so cells landing on this boundary are
+   *  flagged rather than silently trusted. See checkInvariants' "rounding-boundary-risk"
+   *  entry and the arena-reward-table skill's SKILL.md for the fuller writeup. */
+  readonly boundaryRiskFields: readonly PaidField[];
+}
+
+// --- Exact rational arithmetic (BigInt numerator/denominator) for boundary-risk detection ---
+//
+// An epsilon-based "is this double close to an integer" check cannot tell a genuinely exact
+// division (e.g. 6000/3 = 2000, no rounding possible in any base) apart from a division that
+// only LOOKS exact because this engine's specific double rounding happened to land back on
+// the integer (e.g. 7000/3*3 prints as exactly 7000 in JS, yet the live C# decimal backend
+// computes the same formula as 6999 for that exact case — confirmed 2026-08-31). Both cases
+// are numerically indistinguishable from the computed double value alone. Exact fractions
+// sidestep the problem entirely: a value is representable with zero rounding error in IEEE-754
+// double iff its reduced denominator is a power of 2, and in C# `decimal` (base-10) iff its
+// reduced denominator's only prime factors are 2 and 5 — so "denominator is a power of 2" is
+// sufic­ient for BOTH engines to agree exactly, and is the only case this code treats as safe.
+interface Frac {
+  readonly num: bigint;
+  readonly den: bigint; // always > 0
+}
+
+function gcdBig(a: bigint, b: bigint): bigint {
+  a = a < 0n ? -a : a;
+  b = b < 0n ? -b : b;
+  while (b) {
+    [a, b] = [b, a % b];
+  }
+  return a === 0n ? 1n : a;
+}
+
+function simplifyFrac(num: bigint, den: bigint): Frac {
+  if (den < 0n) {
+    num = -num;
+    den = -den;
+  }
+  const g = gcdBig(num, den);
+  return { num: num / g, den: den / g };
+}
+
+function mulFrac(a: Frac, b: Frac): Frac {
+  return simplifyFrac(a.num * b.num, a.den * b.den);
+}
+
+function divFrac(a: Frac, b: Frac): Frac {
+  return simplifyFrac(a.num * b.den, a.den * b.num);
+}
+
+function addFrac(a: Frac, b: Frac): Frac {
+  return simplifyFrac(a.num * b.den + b.num * a.den, a.den * b.den);
+}
+
+const ONE_FRAC: Frac = { num: 1n, den: 1n };
+
+/** Exact conversion of a "human decimal" (config values: pool, percentages, player counts,
+ *  multipliers) to a fraction, via string round-tripping rather than binary inspection — a
+ *  double like 1.2 is not exactly 1.2 in memory, but `(1.2).toString()` reliably gives back
+ *  "1.2" for any value this domain actually produces (typed literals, JSON, or CLI-parsed
+ *  numbers with at most a few decimal digits), which is what we want to reason about exactly. */
+function decimalToFraction(x: number): Frac {
+  const s = x.toString();
+  if (s.includes("e") || s.includes("E")) {
+    throw new Error(`decimalToFraction: unsupported exponential notation for ${x}`);
+  }
+  const negative = s.startsWith("-");
+  const abs = negative ? s.slice(1) : s;
+  const dotIndex = abs.indexOf(".");
+  if (dotIndex === -1) {
+    return simplifyFrac(BigInt(abs) * (negative ? -1n : 1n), 1n);
+  }
+  const digits = abs.slice(0, dotIndex) + abs.slice(dotIndex + 1);
+  const den = 10n ** BigInt(abs.length - dotIndex - 1);
+  return simplifyFrac(BigInt(digits) * (negative ? -1n : 1n), den);
+}
+
+function isPowerOfTwo(n: bigint): boolean {
+  return n > 0n && (n & (n - 1n)) === 0n;
+}
+
+function fieldFactorFractions(config: RewardConfig): Record<PaidField, Frac> {
+  const lv2 = decimalToFraction(config.stakingLv2Multiplier);
+  const lv3 = decimalToFraction(config.stakingLv3Multiplier);
+  const cp = decimalToFraction(config.couragePassMultiplier);
+  return {
+    basic: ONE_FRAC,
+    staking2: addFrac(ONE_FRAC, lv2),
+    staking3: addFrac(ONE_FRAC, lv3),
+    couragePass: addFrac(ONE_FRAC, cp),
+    couragePassStaking2: addFrac(addFrac(ONE_FRAC, lv2), cp),
+    couragePassStaking3: addFrac(addFrac(ONE_FRAC, lv3), cp),
+  };
+}
+
+/** A paid amount is boundary-sensitive only when BOTH: (1) the group's eachPlayerGetsNone
+ *  division is not exactly representable in double (equivalently: its reduced denominator is
+ *  not a power of 2 — see the module-level comment above), so at least one of this engine /
+ *  the live decimal backend must round it, AND (2) that specific field's true
+ *  (infinite-precision) value is exactly a whole number, so a rounding nudge in either
+ *  direction changes which integer Math.floor()/`(int)` lands on. Real confirmed example:
+ *  pool 400,000, group "6-9", courage+staking-lv3 — this engine floors to 7000, the live
+ *  backend floors to 6999 (verified 2026-08-31 by directly running
+ *  CalculateRewardsWithDynamicTable). See RewardTier.boundaryRiskFields and the
+ *  arena-reward-table skill's SKILL.md for the fuller writeup. */
+function computeBoundaryRiskFields(group: TierGroup, config: RewardConfig): PaidField[] {
+  const groupReward = divFrac(
+    mulFrac(decimalToFraction(config.rankingPool), decimalToFraction(group.rewardPercentage)),
+    decimalToFraction(100),
+  );
+  const playerCount = decimalToFraction(group.playerCount);
+  const factors = fieldFactorFractions(config);
+  const eachPlayerGetsNone = divFrac(divFrac(groupReward, playerCount), factors.couragePassStaking3);
+
+  if (isPowerOfTwo(eachPlayerGetsNone.den)) {
+    return []; // exact in both double and decimal -- no field can be at risk
+  }
+
+  const risky: PaidField[] = [];
+  for (const field of Object.keys(factors) as PaidField[]) {
+    const trueValue = mulFrac(eachPlayerGetsNone, factors[field]);
+    if (trueValue.den === 1n) {
+      risky.push(field);
+    }
+  }
+  return risky;
 }
 
 /** GenerateTierGroups() — ArenaRewardService.cs:557-599. All decimal, no truncation.
@@ -139,7 +283,10 @@ export function generateTierGroups(config: RewardConfig): TierGroup[] {
  *  truncation happens. Each condition is floored independently, then basicReward is
  *  subtracted to get the stored delta — this is why bonuses can be off by up to 1 unit
  *  from "exactly basic * multiplier" (each floors separately). */
-export function convertTierGroupsToRewardTiers(groups: readonly TierGroup[]): RewardTier[] {
+export function convertTierGroupsToRewardTiers(
+  groups: readonly TierGroup[],
+  config: RewardConfig,
+): RewardTier[] {
   return groups
     .map((g): RewardTier => {
       const basicReward = Math.floor(g.eachPlayerGetsNone);
@@ -152,6 +299,7 @@ export function convertTierGroupsToRewardTiers(groups: readonly TierGroup[]): Re
         couragePassReward: Math.floor(g.eachPlayerGetsCouragePass) - basicReward,
         couragePassAndStaking2Reward: Math.floor(g.eachPlayerGetsStakingLv2Courage) - basicReward,
         couragePassAndStaking3Reward: Math.floor(g.eachPlayerGetsStakingLv3Courage) - basicReward,
+        boundaryRiskFields: computeBoundaryRiskFields(g, config),
       };
     })
     .sort((a, b) => a.rankRangeMin - b.rankRangeMin);
@@ -351,7 +499,7 @@ export function checkInvariants(config: RewardConfig, tierGroups: readonly TierG
   // Upper bound, not equality — every player would need staking lv3 + courage pass to
   // reach it, and int truncation shaves a little more off even then. See spec doc §6:
   // "실지급 ≤ 총 풀... 등호로 두면 매 시즌 오탐이 난다".
-  const tiers = convertTierGroupsToRewardTiers(tierGroups);
+  const tiers = convertTierGroupsToRewardTiers(tierGroups, config);
   const maxPayout = tierGroups.reduce((sum, g) => {
     const tier = tiers.find((t) => t.rankRangeMin === g.minRank)!;
     return sum + g.playerCount * (tier.basicReward + tier.couragePassAndStaking3Reward);
@@ -363,6 +511,28 @@ export function checkInvariants(config: RewardConfig, tierGroups: readonly TierG
     ok: payoutOk,
     detail: `max ${maxPayout} vs pool ${config.rankingPool} (residual ${config.rankingPool - maxPayout})`,
     level: payoutOk ? "OK" : "FATAL",
+  });
+
+  // CONFIRMED 2026-08-31 by directly running the live backend's
+  // CalculateRewardsWithDynamicTable: pool 400,000 group "6-9" courage+staking-lv3 pays
+  // 6,999 there but this engine computes 7,000 — both are "correct" reads of the same
+  // formula, they just round the intermediate C# decimal / JS double division differently
+  // when the exact value sits on a whole-number boundary. See RewardTier.boundaryRiskFields.
+  const boundaryRiskGroups = tierGroups
+    .map((g, i) => ({ group: g, tier: tiers[i]! }))
+    .filter(({ tier }) => tier.boundaryRiskFields.length > 0);
+  invariants.push({
+    id: "rounding-boundary-risk",
+    name: "부동소수점 반올림 경계값 없음",
+    ok: boundaryRiskGroups.length === 0,
+    detail:
+      boundaryRiskGroups.length === 0
+        ? "없음"
+        : boundaryRiskGroups
+            .map(({ group, tier }) => `${group.rankGroup}(${tier.boundaryRiskFields.join(",")})`)
+            .join("; ") +
+          " — 이 칸들은 실제 값(정수)에 정확히 걸쳐 있어 백엔드(C# decimal)와 ±1 차이가 날 수 있습니다. 실지급 확정 전 백오피스 값과 대조하세요.",
+    level: boundaryRiskGroups.length === 0 ? "OK" : "WARN",
   });
 
   return invariants;

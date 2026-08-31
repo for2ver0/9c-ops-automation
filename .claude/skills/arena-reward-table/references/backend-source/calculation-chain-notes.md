@@ -11,6 +11,12 @@
 `CalculateRewards`(유저별 매칭·합산, 359-446행). 유저별 룩업 헬퍼는 490-533행
 (`GetRewardEntryForRank`/`GetStakingLevel`/`GetStakingBonus`).
 
+⚠️ **모든 필드가 C# `decimal`이다** (`ArenaRewardModels.cs`) — 이 스킬(`arena-reward-calc.ts`)은
+JS `number`(IEEE-754 double)로 재현하는데, 나눗셈 중간값이 정수 경계에 정확히 걸치는 극히 일부
+칸에서 두 타입이 반올림 방향을 다르게 처리해 결과가 ±1 갈릴 수 있음이 2026-08-31 실측으로
+확인됐다(도메인 담당자가 실제 백엔드를 직접 실행해 골든 픽스처와 대조). 자세한 내용·재현 사례·
+대응 방식은 `arena-reward-table` SKILL.md §4-1 참고.
+
 ## 확정된 수치적 사실
 
 - `EachPlayerGetsNone = groupReward / playerCount / (1 + StakingLv3Multiplier + CouragePassMultiplier)`.

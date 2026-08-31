@@ -225,7 +225,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const config = await resolveConfig(args);
   const groups = generateTierGroups(config);
-  const tiers = convertTierGroupsToRewardTiers(groups);
+  const tiers = convertTierGroupsToRewardTiers(groups, config);
   const invariants = checkInvariants(config, groups);
 
   let title = "Arena Rewards";

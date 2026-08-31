@@ -34,7 +34,8 @@ description: Nine Chronicles 아레나 시즌 상금 표를 계산하고 검증�
 - **무엇을 하는 스킬인가**: RankingPool·그룹별 배분 비율·보너스 배수 3종을 사람이 입력하면, 그걸로 10개
   랭크 구간의 지급액 표를 백오피스와 동일한 공식으로 계산하고, 랭킹·스테이킹·용기패스 데이터를 붙여
   실제 유저별 지급액까지 낸다. 백오피스가 스스로 검증하지 않는 항목(인원/비율 불변식, 테이블 밖 랭크
-  스킵, 프리미엄 100명 상한, 매칭 실패, 동점 경계 이동)을 표면화하는 게 이 스킬의 존재 이유다.
+  스킵, 프리미엄 100명 상한, 매칭 실패, 동점 경계 이동, C# decimal ↔ JS double 반올림 경계값 — §4-1)을
+  표면화하는 게 이 스킬의 존재 이유다.
 - **핵심 원칙**: 계산은 백오피스(`ArenaRewardService.GenerateTierGroups` /
   `ConvertTierGroupsToRewardTiers` / `CalculateRewards`)와 **동일한 로직**을 재구현한 것이다 —
   다른 답을 내면 그게 버그다. 이 스킬이 새로 추가하는 건 계산 자체가 아니라 **불변식 검증과 위험
@@ -170,18 +171,43 @@ bun run tools/9c/arena-reward-table.ts --table-only \
 | 등급 | 동작 | 예시 |
 | --- | --- | --- |
 | **OK** | 계속 | 인원 합 500, 비율 합 100%, 실지급 ≤ 풀 |
-| **WARN** | 계속하되 리포트에 표기, 판단은 사람에게 | `TotalPrize ≠ RankingPool`, 테이블 밖 랭크 스킵, 스테이킹 매칭 실패, 용기패스 100명 도달 |
+| **WARN** | 계속하되 리포트에 표기, 판단은 사람에게 | `TotalPrize ≠ RankingPool`, 테이블 밖 랭크 스킵, 스테이킹 매칭 실패, 용기패스 100명 도달, 부동소수점 반올림 경계값 |
 | **FATAL** | 중단(exit 1) | 인원 합 ≠ 500, 비율 합 ≠ 100%, `sum(groupReward) ≠ RankingPool`, 실지급 상한 초과 |
 
-`checkInvariants`(순수 함수, `tools/9c/lib/arena-reward-calc.ts`)가 4개 기본 불변식을 내고, CLI가
+`checkInvariants`(순수 함수, `tools/9c/lib/arena-reward-calc.ts`)가 5개 기본 불변식(`players-sum` /
+`percent-sum` / `group-reward-sum` / `payout-upper-bound` / `rounding-boundary-risk`)을 내고, CLI가
 라이브/CSV 데이터가 있을 때 추가로 `total-prize-vs-ranking-pool`(WARN) / `skipped-ranks`(WARN) /
 `staking-match-failures`(WARN) / `courage-pass-premium-100`(WARN)을 더한다.
+
+### 4-1. `rounding-boundary-risk` — C# decimal vs JS double (2026-08-31 확인)
+
+도메인 담당자가 실제 백엔드(`CalculateRewardsWithDynamicTable`)를 직접 실행해 이 스킬의 골든
+픽스처와 셀 단위로 대조한 결과, **불일치 1건이 실제로 확인됐다**: pool 400,000·구간 "6-9"·
+용기패스+스테이킹lv3 조건에서 백엔드는 **6,999**를 주는데 이 스킬(과 골든 픽스처)은 **7,000**을
+계산한다. 200,000(1-2 구간)·250,000(6-9 구간)도 같은 유형.
+
+**원인**: 이 조건 셀은 수식을 풀면 배수 값과 무관하게 항상 정확히 `그룹상금/인원수`와 같아지는데
+(`eachPlayerGetsNone`을 만들 때 나눈 값을 그대로 다시 곱하기 때문), 그 중간 나눗셈이 정수로 안
+떨어질 때 **JS의 double과 C#의 decimal이 반올림 방향을 다르게 처리**해서 결과가 정수 경계 바로
+위/아래로 갈린다. 이 스킬의 7,000은 수식이 의도한 "정확한" 값이지만, 실제 지급은 백엔드가 하는
+대로 6,999다.
+
+**선택한 대응 (계산 로직은 안 바꿈)**: `arena-reward-calc.ts`의 `computeBoundaryRiskFields`가
+BigInt 유리수 연산으로 "이 칸의 참값이 정수에 정확히 걸쳐 있고, 그 중간 나눗셈이 double/decimal
+양쪽 모두에서 오차 없이 표현 가능하지 않은 경우"만 정확히 골라내 `RewardTier.boundaryRiskFields`에
+표시하고, `checkInvariants`가 이를 WARN(`rounding-boundary-risk`)으로 올린다 — 계산값을 억지로
+"수정"하지 않는다(단서 3개뿐이라 C# decimal의 반올림 규칙을 100% 확신 못 함 — 계산 로직을 잘못
+바꾸는 게 더 위험하다고 판단, 2026-08-31 결정). 흔한 경우다 — 기본 배수(0.5/1.0/1.0)로 훑어보면
+1만~100만 풀 범위에서 약 15%의 칸이 이 경계에 걸린다.
+
+`X-API-Key`를 확보하면 `/calculate`의 원시 decimal 값으로 더 많은 사례를 검증해 이 대응을
+재평가할 수 있다(`arena-settlement-check` SKILL.md §6 참고, 같은 키가 필요).
 
 ## 5. 수용 기준 (완료 판정) — 현재 상태
 
 | 항목 | 상태 |
 | --- | --- |
-| Odin S39 / Heimdall CS9 골든 픽스처 셀 값(10그룹×6열) 오차 없이 재현 | ✅ `bun test tools/9c/lib/` (31 pass, 404 assertions) |
+| Odin S39 / Heimdall CS9 골든 픽스처 셀 값(10그룹×6열) 오차 없이 재현 | ✅ `bun test tools/9c/lib/arena-reward-calc.test.ts tools/9c/lib/arena-reward-png.test.ts` (36 pass, 419 assertions) |
 | CLI가 라이브 API로 같은 두 시즌을 재현(시즌 메타·참가자 수) | ✅ `bun run tools/9c/fixtures/verify-arena-reward-table.ts --live` |
 | CSV 폴백(스테이킹+용기패스) 경로가 API와 동일한 결과를 냄 | ✅ 수동 검증 — Odin S39 rank1("Mazi")에 스테이킹 lv3+용기패스 CSV를 먹였더니 골든 픽스처의 CP+St3(14,000)와 정확히 일치 |
 | 인원/비율 불변식이 깨진 설정에서 FATAL로 잡음 | ✅ `arena-reward-calc.test.ts`의 "invariant checks catch broken configs" 스위트 |

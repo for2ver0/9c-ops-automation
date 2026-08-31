@@ -23,7 +23,7 @@ for (const fixture of golden.fixtures) {
       })),
     };
     const groups = generateTierGroups(config);
-    const tiers = convertTierGroupsToRewardTiers(groups);
+    const tiers = convertTierGroupsToRewardTiers(groups, config);
 
     const svg = renderRewardTableSvg({
       title: fixture.expected.title,
@@ -57,7 +57,7 @@ describe("renderRewardTableSvg without season info", () => {
       groupDefinitions: [{ playerCount: 500, rewardPercentage: 100 }],
     };
     const groups = generateTierGroups(config);
-    const tiers = convertTierGroupsToRewardTiers(groups);
+    const tiers = convertTierGroupsToRewardTiers(groups, config);
     const svg = renderRewardTableSvg({ title: "Test Table", groups, tiers, rankingPool: config.rankingPool, season: null });
     expect(svg).toContain("Test Table");
     expect(svg).not.toContain("Block ");
