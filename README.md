@@ -20,3 +20,22 @@
 검증·초안 생성까지만 한다.
 
 ## 2. 정규 운영 업데이트
+
+원설계는 8개 스크립트(자동화는 "정제 이슈 초안"까지만 만들고, 검토·승인·배포 실행은 항상
+사람)로 그려졌다. 처음엔 대부분이 권한 승인 대기 중이라 여겼는데, 실제로 확인해보니 애초에
+권한이 필요 없던 항목이 둘 있었다 — 밸런스 시트는 이미 무인증 공개 상태였고, 디스코드는
+자동 게시 경로 자체가 없어(항상 사람이 수동 게시) 권한을 받을 대상이 없었다. 지금은
+[권한 요청 문서](docs/9c-update-automation-permission-request.md)에 **진짜 승인이 필요한
+항목이 S3 1건**만 남아 있고, 자체적으로 조사 가능했던 항목은 [조사 결과](docs/9c-update-automation-self-check.md)에
+정리해 뒀다.
+
+| 스킬 | 역할 | 상태 |
+| --- | --- | --- |
+| [`release-guard`](.claude/skills/release-guard/SKILL.md) | 깃북 릴리즈 노트 vs 메인넷 APV vs 인게임 공지판 일관성 대조 | 부분 구현 — 일관성·헤드 대조만, `Event.json` 스냅샷은 S3 권한 대기 |
+| `datasheet-validate` | 밸런스 시트 검증(1차 필수) | 미착수 — 권한 블로커 없음(시트가 공개로 확인됨), 착수만 하면 됨 |
+| `announce-fanout` | 디스코드 공지 초안 생성 | 미착수 — 권한 블로커 없음(게시는 원래도 항상 사람이 수동으로 함), 초안 생성 스킬로 착수만 하면 됨 |
+| `spec-to-datasheet` / `datasheet-to-csv` | 밸런스 시트 파이프라인 나머지 2종(1차 필수) | 미착수 — 각각 노션 공유 확인·lib9c push 확인 필요 |
+
+도구 코드는 `tools/9c/release-guard.ts` + `tools/9c/lib/release-guard.ts`. 실행 즉시 실제
+프로덕션 상태(2026-08-30/31 기준, 인게임 공지판이 깃북보다 2차수 뒤처진 상태)를 FATAL로
+잡아낸다 — 조사 근거는 [`references/release-guard-investigation.md`](.claude/skills/release-guard/references/release-guard-investigation.md).
