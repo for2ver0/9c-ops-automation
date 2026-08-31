@@ -41,7 +41,7 @@ for (const fixture of golden.fixtures) {
     };
 
     const groups = generateTierGroups(config);
-    const tiers = convertTierGroupsToRewardTiers(groups);
+    const tiers = convertTierGroupsToRewardTiers(groups, config);
 
     test("produces the right number of groups/tiers", () => {
       expect(groups.length).toBe(fixture.expected.groups.length);
@@ -129,5 +129,77 @@ describe("invariant checks catch broken configs (not covered by the golden fixtu
     const pctSum = invariants.find((i) => i.id === "percent-sum")!;
     expect(pctSum.ok).toBe(false);
     expect(pctSum.level).toBe("FATAL");
+  });
+});
+
+describe("rounding-boundary-risk WARN (C# decimal vs JS double)", () => {
+  // Three cells the domain owner confirmed by directly running the live backend's
+  // CalculateRewardsWithDynamicTable against this engine's golden-fixture config: the
+  // backend paid 1 less than this engine computes, because the exact value sits exactly on
+  // an integer and C# decimal / JS double round the intermediate division differently.
+  // Real confirmed example: pool 400,000, group "6-9" — backend 6,999, this engine 7,000.
+  const DEFAULT_GROUP_DEFS = [
+    { playerCount: 2, rewardPercentage: 7 },
+    { playerCount: 3, rewardPercentage: 8 },
+    { playerCount: 4, rewardPercentage: 7 },
+    { playerCount: 6, rewardPercentage: 9 },
+    { playerCount: 10, rewardPercentage: 12 },
+    { playerCount: 25, rewardPercentage: 18 },
+    { playerCount: 37, rewardPercentage: 18 },
+    { playerCount: 38, rewardPercentage: 12 },
+    { playerCount: 125, rewardPercentage: 6 },
+    { playerCount: 250, rewardPercentage: 3 },
+  ];
+  const baseConfig = (rankingPool: number): RewardConfig => ({
+    rankingPool,
+    stakingLv2Multiplier: 0.5,
+    stakingLv3Multiplier: 1.0,
+    couragePassMultiplier: 1.0,
+    groupDefinitions: DEFAULT_GROUP_DEFS,
+  });
+
+  test.each([
+    ["pool 200,000, group 1-2", 200_000, "1-2"],
+    ["pool 250,000, group 6-9", 250_000, "6-9"],
+    ["pool 400,000, group 6-9", 400_000, "6-9"],
+  ])("%s: couragePassStaking3 is flagged as boundary-risk", (_label, rankingPool, rankGroup) => {
+    const config = baseConfig(rankingPool);
+    const groups = generateTierGroups(config);
+    const tiers = convertTierGroupsToRewardTiers(groups, config);
+    const tier = tiers[groups.findIndex((g) => g.rankGroup === rankGroup)];
+    expect(tier.boundaryRiskFields).toContain("couragePassStaking3");
+
+    const invariants = checkInvariants(config, groups);
+    const risk = invariants.find((i) => i.id === "rounding-boundary-risk")!;
+    expect(risk.ok).toBe(false);
+    expect(risk.level).toBe("WARN");
+    expect(risk.detail).toContain(rankGroup);
+  });
+
+  test("a genuinely fractional cell (not near a whole number) is not flagged", () => {
+    // pool 400,000, group 51-87 (37 players, 18%): far from any integer boundary.
+    const config = baseConfig(400_000);
+    const groups = generateTierGroups(config);
+    const tiers = convertTierGroupsToRewardTiers(groups, config);
+    const tier = tiers[groups.findIndex((g) => g.rankGroup === "51-87")];
+    expect(tier.boundaryRiskFields).toEqual([]);
+  });
+
+  test("clean config (no repeating-fraction division anywhere) has zero risk", () => {
+    // Single group, playerCount and percentage chosen so every intermediate division
+    // terminates exactly -- genuinely zero rounding-boundary risk, not just "not flagged
+    // for this particular field".
+    const config: RewardConfig = {
+      rankingPool: 600_000,
+      stakingLv2Multiplier: 0.5,
+      stakingLv3Multiplier: 1.0,
+      couragePassMultiplier: 1.0,
+      groupDefinitions: [{ playerCount: 100, rewardPercentage: 100 }],
+    };
+    const groups = generateTierGroups(config);
+    const invariants = checkInvariants(config, groups);
+    const risk = invariants.find((i) => i.id === "rounding-boundary-risk")!;
+    expect(risk.ok).toBe(true);
+    expect(risk.level).toBe("OK");
   });
 });

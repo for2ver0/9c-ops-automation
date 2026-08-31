@@ -9,7 +9,8 @@
     "두 시즌 모두 실제 참가자 수가 500 미만이라 하위 구간이 비어 있다 (bracketOccupancy).",
     "maxPayoutAfterTruncation 은 상한이지 실지급 총액이 아니다. 등호 검사 금지.",
     "두 시즌 모두 Season.Id가 40으로 동일 (네트워크가 다른 별개 시즌) — 픽스처 키는 id가 아니라 network+seasonGroupId로 잡는다.",
-    "이 세션에서 odin-arena.9c.gg/heimdall-arena.9c.gg 라이브 API로 season 메타데이터·leaderboard rank1/2 주소·totalPrize를 직접 재조회해 아래 값과 일치 확인함(2026-08-30)."
+    "이 세션에서 odin-arena.9c.gg/heimdall-arena.9c.gg 라이브 API로 season 메타데이터·leaderboard rank1/2 주소·totalPrize를 직접 재조회해 아래 값과 일치 확인함(2026-08-30).",
+    "⚠️ 2026-08-31 확인: 도메인 담당자가 실제 백엔드(CalculateRewardsWithDynamicTable)를 직접 실행해 이 픽스처와 대조한 결과, odin-season-39의 '6-9' 구간 paid.couragePassStaking3 는 이 픽스처의 7000이 아니라 실제로는 6999를 지급합니다 — JS double과 C# decimal이 나눗셈 중간값(정수 경계에 정확히 걸친 값)을 다르게 반올림하기 때문입니다(근본 원인은 arena-reward-calc.ts의 computeBoundaryRiskFields 주석 참고). 이 픽스처의 7000은 '수식이 정확히 의도한 값'이지 '백엔드가 실제로 지급한 값'은 아닙니다 — 의도적으로 고치지 않고 남겨둠(계산 로직을 바꾸는 대신 boundaryRiskFields/WARN으로 감지만 하기로 결정, 2026-08-31)."
   ],
   "fixtures": [
     {
