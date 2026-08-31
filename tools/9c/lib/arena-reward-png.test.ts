@@ -7,7 +7,7 @@
 import { describe, expect, test } from "bun:test";
 import golden from "../fixtures/arena-reward-table.golden.json";
 import { convertTierGroupsToRewardTiers, generateTierGroups, type RewardConfig } from "./arena-reward-calc";
-import { renderRewardTableSvg } from "./arena-reward-png";
+import { formatRankLabel, renderRewardTableSvg } from "./arena-reward-png";
 
 for (const fixture of golden.fixtures) {
   test(`${fixture.label}: SVG contains the title and every group's cell values`, () => {
@@ -39,7 +39,7 @@ for (const fixture of golden.fixtures) {
     expect(svg).toContain(fixture.inputs.season.endBlock.toLocaleString("en-US"));
 
     for (const g of fixture.expected.groups) {
-      expect(svg).toContain(`>${g.rankGroup}<`);
+      expect(svg).toContain(`>${formatRankLabel(g.minRank, g.maxRank)}<`);
       expect(svg).toContain(`>${g.groupReward.toLocaleString("en-US")}<`);
       expect(svg).toContain(`>${g.paid.basic.toLocaleString("en-US")}<`);
       expect(svg).toContain(`>${g.paid.couragePassStaking3.toLocaleString("en-US")}<`);
