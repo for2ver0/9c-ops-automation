@@ -19,10 +19,12 @@ import {
   fetchGitbookHead,
   fetchManifestApv,
   fetchNoticeHead,
+  fetchNoticeHeadFromGit,
   fetchClientBuildInfo,
   checkNoticeHeaderFormat,
   checkNoticeEmptyContents,
   checkNoticeFilesAgree,
+  checkNoticeGitMatchesCdn,
   checkGitbookVsNotice,
   checkGitbookVsManifest,
   checkThorInfo,
@@ -80,28 +82,33 @@ async function appendLog(path: string | undefined, entry: LogEntry): Promise<voi
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
-  const [gitbookApv, odin, heimdall, thor, noticeEn, noticeKr, noticeJp, clientBuild] = await Promise.all([
-    fetchGitbookHead(),
-    fetchManifestApv("odin"),
-    fetchManifestApv("heimdall"),
-    fetchManifestApv("thor"),
-    fetchNoticeHead("TextNotice"),
-    fetchNoticeHead("TextNotice_KR"),
-    fetchNoticeHead("TextNotice_JP"),
-    fetchClientBuildInfo().catch(() => null), // 정보성일 뿐이라 실패해도 전체를 막지 않는다
-  ]);
+  const [gitbookApv, odin, heimdall, thor, noticeEn, noticeKr, noticeJp, noticeEnGit, noticeKrGit, noticeJpGit, clientBuild] =
+    await Promise.all([
+      fetchGitbookHead(),
+      fetchManifestApv("odin"),
+      fetchManifestApv("heimdall"),
+      fetchManifestApv("thor"),
+      fetchNoticeHead("TextNotice"),
+      fetchNoticeHead("TextNotice_KR"),
+      fetchNoticeHead("TextNotice_JP"),
+      fetchNoticeHeadFromGit("TextNotice"),
+      fetchNoticeHeadFromGit("TextNotice_KR"),
+      fetchNoticeHeadFromGit("TextNotice_JP"),
+      fetchClientBuildInfo().catch(() => null), // 정보성일 뿐이라 실패해도 전체를 막지 않는다
+    ]);
 
-  const noticeFiles: Array<{ file: NoticeFile; head: typeof noticeEn }> = [
-    { file: "TextNotice", head: noticeEn },
-    { file: "TextNotice_KR", head: noticeKr },
-    { file: "TextNotice_JP", head: noticeJp },
+  const noticeFiles: Array<{ file: NoticeFile; head: typeof noticeEn; git: typeof noticeEnGit }> = [
+    { file: "TextNotice", head: noticeEn, git: noticeEnGit },
+    { file: "TextNotice_KR", head: noticeKr, git: noticeKrGit },
+    { file: "TextNotice_JP", head: noticeJp, git: noticeJpGit },
   ];
 
   const checks: Check[] = [];
-  for (const { file, head } of noticeFiles) {
+  for (const { file, head, git } of noticeFiles) {
     checks.push(checkNoticeHeaderFormat(file, head));
     checks.push(checkNoticeEmptyContents(file, head));
     checks.push(checkGitbookVsNotice(gitbookApv, head.apv, file));
+    checks.push(checkNoticeGitMatchesCdn(file, head, git));
   }
   checks.push(checkNoticeFilesAgree({ en: noticeEn.apv, kr: noticeKr.apv, jp: noticeJp.apv }));
   checks.push(checkGitbookVsManifest(gitbookApv, odin));

@@ -20,6 +20,7 @@
 | 깃북 릴리즈 노트 | `https://docs.nine-chronicles.com/introduction/intro/release-notes` | 최신 항목이 `<h2 id="id-200470" ...>200470</h2>` 형태로, 문서 순서상 **내림차순(최신 먼저)** 렌더링됨. 첫 매치가 최신 APV. |
 | 메인넷 매니페스트 | `https://raw.githubusercontent.com/planetarium/9c-infra/main/9c-main/network/{odin,heimdall,thor,general}.yaml` | 레포는 `planetarium/9c-infra`(설계 문서는 그냥 "`9c-main/network/*.yaml`"이라고만 적어 레포명이 없었음 — 후보로 `9c-k8s-config`도 검토했으나 404, `9c-infra`가 200). `appProtocolVersion: "200470/<hex>/<sig>/<b64 timestamp>"` 형식. `general.yaml`엔 이 키가 아예 없음(설계 문서 주장과 일치). |
 | 인게임 공지판 | `https://assets.nine-chronicles.com/live-assets/Json/TextNotice{,_KR,_JP}.json` | `{ NoticeData: [{ Header: "v200450", Date, Contents }, ...] }`, 최신이 배열 맨 앞(index 0). |
+| 공지판 git 원본 | `https://raw.githubusercontent.com/planetarium/NineChronicles.LiveAssets/main/Assets/Json/TextNotice{,_KR,_JP}.json` | `docs/9c-update-automation-self-check.md` 조사(GitHub 레포 존재 확인) 과정에서 발견 — `Event.json`과 달리 `TextNotice*.json`은 실제로 이 레포에 git 관리된다. CDN과 비교해 "PR 없이 직접 배포됐는지"를 잡는 보조 체크(`checkNoticeGitMatchesCdn`)에 사용. 2026-08-31 기준 CDN과 완전히 동일함을 확인. |
 | 클라 빌드 버전(정보성) | `https://release.nine-chronicles.com/main/player/latest.json` | `{ version: 47000000011, timestamp, commit-hash, files }`. 설계 문서가 이미 언급한 URL, 그대로 확인됨. |
 
 ## 라이브로 재현된 실제 사고

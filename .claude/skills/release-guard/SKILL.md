@@ -37,7 +37,7 @@ description: 나인 크로니클 정규 업데이트 릴리즈가 깃북 릴리�
 
 ## 1. 무엇을 하는가
 
-세 곳의 "지금 릴리즈가 몇 번인가" 주장을 서로 대조한다.
+네 곳의 "지금 릴리즈가 몇 번인가" 주장을 서로 대조한다.
 
 1. **깃북 릴리즈 노트**(`docs.nine-chronicles.com/introduction/intro/release-notes`) — 설계
    문서가 채택한 기준(SOT). 최상단 항목의 버전을 읽는다.
@@ -45,6 +45,9 @@ description: 나인 크로니클 정규 업데이트 릴리즈가 깃북 릴리�
    `appProtocolVersion` 필드) — 그 네트워크가 실제로 구동 중인 버전.
 3. **인게임 공지판**(`assets.nine-chronicles.com/live-assets/Json/TextNotice{,_KR,_JP}.json`) —
    플레이어가 실제로 보는 버전 표시.
+4. **`TextNotice*.json`의 LiveAssets git 원본**(`planetarium/NineChronicles.LiveAssets` 레포,
+   `Assets/Json/`) — 3번과 달리 `Event.json`은 git에 없지만 `TextNotice*.json`은 실제로 PR을
+   거쳐 git으로 관리된다. CDN이 이 git 버전과 다르면 배포 흐름에 이상이 있다는 뜻이다.
 
 대조 결과로 다음을 잡는다 (실제로 2026-08-30/31 기준 라이브 데이터에서 재현됨 — 참고:
 `references/release-guard-investigation.md`):
@@ -62,6 +65,8 @@ description: 나인 크로니클 정규 업데이트 릴리즈가 깃북 릴리�
   이 항목을 밀어낼 수 있음(FATAL).
 - **게시된 공지의 빈 본문** — 붙여넣기 누락 사후 탐지(FATAL).
 - **언어별 공지 불일치** — EN/KR/JP 헤더가 서로 다르면 WARN.
+- **CDN이 LiveAssets git보다 최신** — PR 절차 없이 CDN에 직접 배포된 것으로 의심되는 상태.
+  즉시 FATAL. (반대로 git이 CDN보다 최신인 건 머지 직후 배포 전파 지연일 뿐이라 WARN.)
 - thor.yaml, `latest.json`의 클라 빌드 버전은 **정보성으로만 표시**하고 어떤 판정에도 쓰지
   않는다(이유는 아래 "범위 밖" 참고).
 
@@ -92,6 +97,7 @@ FATAL이 하나라도 있으면 exit 1. `--log-file`을 주면 실행할 때마�
 | 공지 헤더 형식(`v{APV}`) | 정상 | — | 형식 오류 |
 | 공지 본문 비어있음 | 본문 있음 | — | 비어있음 |
 | 언어별 공지 일치 | 3개 언어 동일 | 불일치 | — |
+| CDN vs LiveAssets git | 일치 | git이 앞섬(전파 지연) | CDN이 git보다 앞섬(PR 우회 의심), 또는 버전은 같은데 본문이 다름 |
 | thor.yaml | 항상 정보성, FATAL 없음 | | |
 
 ## 4. 범위 밖 (설계 문서 대비 의도적으로 뺀 것)
@@ -114,9 +120,10 @@ FATAL이 하나라도 있으면 exit 1. `--log-file`을 주면 실행할 때마�
 
 | 사실 | 근거 |
 | --- | --- |
-| 4개 엔드포인트 모두 인증 없는 공개 읽기 | 이 세션, 2026-08-30/31 라이브로 확인 |
+| 5개 엔드포인트(깃북·매니페스트·공지 CDN·공지 LiveAssets git·latest.json) 모두 인증 없는 공개 읽기 | 이 세션, 2026-08-30/31 라이브로 확인 |
 | 매니페스트 레포는 `planetarium/9c-infra`(설계 문서엔 레포명이 없었음) | 라이브 프로빙(`9c-k8s-config`는 404, `9c-infra`는 200) |
 | `general.yaml`엔 `appProtocolVersion` 키가 없음 | 라이브로 확인, 설계 문서 주장과 일치 |
+| 설계 문서가 "LiveAssets"라 부른 레포의 정식 이름은 `planetarium/NineChronicles.LiveAssets`(공개) | 라이브 프로빙(`docs/9c-update-automation-self-check.md` 참고) — `TextNotice*.json`은 git 관리되지만 `Event.json`은 없음(교차검증) |
 | "2026-07-21·08-25 2회 연속 미갱신"이 **지금도 실제로 재현됨**(깃북 v200470, 공지판 v200450) | 이 세션, `release-guard.ts` 실행 결과 FATAL로 그대로 잡힘 — 픽스처 아님 |
 
 ## 6. 아직 해소되지 않은 것

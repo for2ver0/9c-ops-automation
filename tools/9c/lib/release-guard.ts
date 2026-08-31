@@ -135,6 +135,7 @@ export function extractNoticeHead(file: NoticeFile, raw: RawNoticeJson): NoticeH
 const GITBOOK_URL = "https://docs.nine-chronicles.com/introduction/intro/release-notes";
 const MANIFEST_BASE = "https://raw.githubusercontent.com/planetarium/9c-infra/main/9c-main/network";
 const NOTICE_BASE = "https://assets.nine-chronicles.com/live-assets/Json";
+const NOTICE_GIT_BASE = "https://raw.githubusercontent.com/planetarium/NineChronicles.LiveAssets/main/Assets/Json";
 const LATEST_JSON_URL = "https://release.nine-chronicles.com/main/player/latest.json";
 
 async function fetchText(url: string): Promise<string> {
@@ -166,6 +167,16 @@ export async function fetchManifestApv(network: ManifestNetwork): Promise<Manife
 export async function fetchNoticeHead(file: NoticeFile): Promise<NoticeHead> {
   const res = await fetch(`${NOTICE_BASE}/${file}.json`);
   if (!res.ok) throw new Error(`GET ${file}.json -> HTTP ${res.status}`);
+  const raw = (await res.json()) as RawNoticeJson;
+  return extractNoticeHead(file, raw);
+}
+
+/** 2026-08-31 라이브 확인: `TextNotice*.json`은 `Event.json`과 달리 실제로 git 관리된다
+ *  (`planetarium/NineChronicles.LiveAssets`, `Assets/Json/`) — PR 머지 후 CDN이 갱신되는
+ *  흐름이라, CDN이 이 git 버전보다 최신이면 PR 없이 직접 배포된 것이라는 뜻이다. */
+export async function fetchNoticeHeadFromGit(file: NoticeFile): Promise<NoticeHead> {
+  const res = await fetch(`${NOTICE_GIT_BASE}/${file}.json`);
+  if (!res.ok) throw new Error(`GET LiveAssets git ${file}.json -> HTTP ${res.status}`);
   const raw = (await res.json()) as RawNoticeJson;
   return extractNoticeHead(file, raw);
 }
@@ -216,6 +227,47 @@ export function checkNoticeEmptyContents(file: NoticeFile, head: NoticeHead): Ch
     };
   }
   return { id, name: `${file} 본문 비어있음`, ok: true, level: "OK", detail: "본문 있음." };
+}
+
+/** 보조: CDN이 서빙 중인 공지가 LiveAssets git(main)에 실제로 커밋된 버전과 일치하는지.
+ *  TextNotice*.json은 Event.json과 달리 PR을 거쳐 git으로 관리되므로(fetchNoticeHeadFromGit
+ *  주석 참고), git이 CDN보다 최신이면 정상적인 배포 전파 지연(WARN)이지만, **CDN이 git보다
+ *  최신**이면 PR 없이 직접 배포됐다는 뜻이라 FATAL로 다룬다. */
+export function checkNoticeGitMatchesCdn(file: NoticeFile, cdnHead: NoticeHead, gitHead: NoticeHead): Check {
+  const id = `notice-git-vs-cdn-${file}`;
+  const name = `${file} CDN 대 LiveAssets git`;
+
+  if (cdnHead.header === gitHead.header && cdnHead.contents === gitHead.contents) {
+    return { id, name, ok: true, level: "OK", detail: "CDN이 서빙 중인 내용이 LiveAssets git(main)과 일치합니다." };
+  }
+
+  if (gitHead.apv !== null && cdnHead.apv !== null && gitHead.apv > cdnHead.apv) {
+    return {
+      id,
+      name,
+      ok: false,
+      level: "WARN",
+      detail: `LiveAssets git에는 이미 v${gitHead.apv}가 머지돼 있지만 CDN은 아직 v${cdnHead.apv}를 서빙합니다 — 배포 전파 지연일 수 있습니다.`,
+    };
+  }
+
+  if (gitHead.apv !== null && cdnHead.apv !== null && cdnHead.apv > gitHead.apv) {
+    return {
+      id,
+      name,
+      ok: false,
+      level: "FATAL",
+      detail: `CDN이 LiveAssets git(v${gitHead.apv})보다 최신인 v${cdnHead.apv}를 서빙하고 있습니다 — PR 절차 없이 직접 배포된 것으로 보입니다.`,
+    };
+  }
+
+  return {
+    id,
+    name,
+    ok: false,
+    level: "WARN",
+    detail: "버전(헤더)은 같지만 본문 내용이 CDN과 LiveAssets git에서 다릅니다 — 캐시 지연이나 부분 배포 가능성이 있습니다.",
+  };
 }
 
 /** 보조: EN/KR/JP 세 파일의 최상단 헤더 APV가 서로 같은지. 다르면 언어별 공지가 갈라진 것. */
