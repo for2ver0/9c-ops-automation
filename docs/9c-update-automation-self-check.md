@@ -5,15 +5,19 @@
 실제로 조사한 결과다 — 2건은 이 개발 환경의 권한 범위 밖이라 결론을 못 냈고, 1건만 확인
 가능했는데 확인 과정에서 설계 문서에 없던 갭을 하나 발견했다.
 
+번호는 [권한 요청 문서](9c-update-automation-permission-request.md)와 마찬가지로 **설계
+문서 원문 번호**를 그대로 쓴다(②③⑨ — 초판은 이 문서 안에서만 통하는 ①②③으로 임의로 다시
+매겨져 있었는데, 권한 요청 문서를 교정하면서 여기도 맞춰 고쳤다).
+
 ## 요약
 
 | # | 항목 | 결과 | 확인 주체 |
 | --- | --- | --- | --- |
-| ① | 노션 페이지가 integration에 Connections로 공유됐는지 | **확인 불가** | 이 환경엔 `NOTION_TOKEN`이 전혀 없음 — Notion 접근 권한을 가진 사람이 직접 |
-| ② | `Atralupus/` 및 lib9c·LiveAssets·NineChronicles·9c-infra 레포 존재 | **확인함 — 갭 1건 발견** | 이 세션(공개 GitHub API, 자격증명 불필요) |
-| ③ | `Atralupus/lib9c`에 `GITHUB_FOCKED_REPO_WRITE_TOKEN`으로 push 가능한지 | **확인 불가** | 이 환경엔 해당 토큰이 없음 — 토큰 있는 환경에서 사람이 직접 |
+| ② | 노션 페이지가 integration에 Connections로 공유됐는지 | **확인 불가** | 이 환경엔 `NOTION_TOKEN`이 전혀 없음 — Notion 접근 권한을 가진 사람이 직접 |
+| ③ | `Atralupus/` 및 lib9c·LiveAssets·NineChronicles·9c-infra 레포 존재 | **확인함 — 갭 1건 발견** | 이 세션(공개 GitHub API, 자격증명 불필요) |
+| ⑨ | `Atralupus/lib9c`에 `GITHUB_FOCKED_REPO_WRITE_TOKEN`으로 push 가능한지 | **확인 불가** | 이 환경엔 해당 토큰이 없음 — 토큰 있는 환경에서 사람이 직접 |
 
-## ① 노션 페이지 공유 — 확인 불가
+## ② 노션 페이지 공유 — 확인 불가
 
 `NOTION_TOKEN`, `GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_FOCKED_REPO_WRITE_TOKEN`, `GITHUB_PR_TOKEN`
 전부 이 개발 환경에 설정돼 있지 않음(환경 변수 부재, `.env` 류 파일도 없음 — 2026-08-31 확인).
@@ -21,7 +25,7 @@
 `spec-to-datasheet`이 쓸 integration에 실제로 공유됐는지는 노션에 접근 가능한 사람이 직접
 Connections 메뉴에서 확인해야 한다.
 
-## ② GitHub 레포 존재 — 확인함, 갭 1건
+## ③ GitHub 레포 존재 — 확인함, 갭 1건
 
 공개 GitHub API로 확인(인증 불필요):
 
@@ -44,16 +48,16 @@ Connections 메뉴에서 확인해야 한다.
 **`Event.json`은 git에 없고 `Event-test.json`만 있다** — 설계 문서 부록 D의 "Event.json은
 PR 없이 즉시 라이브, LiveAssets git엔 없음(raw 404)" 주장과 정확히 일치한다.
 
-## ③ lib9c push 토큰 검증 — 확인 불가
+## ⑨ lib9c push 토큰 검증 — 확인 불가
 
 `GITHUB_FOCKED_REPO_WRITE_TOKEN`(오타처럼 보이지만 실제로 그대로 굳어진 키 이름 —
 `FORKED`가 아니라 `FOCKED`가 맞다. 나중에 "고치지" 말 것)이 이 환경에 없어 실제 push
-테스트를 할 수 없다. ①과 같은 이유로, 토큰을 보유한 환경에서 사람이 빈 커밋 push 등으로
+테스트를 할 수 없다. ②와 같은 이유로, 토큰을 보유한 환경에서 사람이 빈 커밋 push 등으로
 직접 검증해야 한다.
 
 ## 덤으로 확인한 것 — 부록 A-1 정밀 검증
 
-자체 확인 3건은 아니지만, ②를 조사하던 김에 설계 문서 부록 A-1이 `datasheet-to-csv`를
+자체 확인 3건은 아니지만, ③을 조사하던 김에 설계 문서 부록 A-1이 `datasheet-to-csv`를
 "신규"가 아니라 "기존 도구 확장"으로 규정한 근거를 공개 GitHub 정보로 재확인했다:
 
 | 주장 | 확인 결과 |
@@ -68,11 +72,14 @@ PR 없이 즉시 라이브, LiveAssets git엔 없음(raw 404)" 주장과 정확�
 
 ## 다음에 할 일
 
-- ② 갭 해소: `Atralupus`에 `NineChronicles.LiveAssets` fork 생성 (사람, GitHub UI 클릭 1회)
-- ① 노션 확인: Notion 접근 권한을 가진 사람이 Connections 메뉴에서 확인
-- ③ lib9c push 검증: `GITHUB_FOCKED_REPO_WRITE_TOKEN`을 보유한 사람이 확인
+- ③ 갭 해소: `Atralupus`에 `NineChronicles.LiveAssets` fork 생성 (사람, GitHub UI 클릭 1회)
+- ② 노션 확인: Notion 접근 권한을 가진 사람이 Connections 메뉴에서 확인
+- ⑨ lib9c push 검증: `GITHUB_FOCKED_REPO_WRITE_TOKEN`을 보유한 사람이 확인
 
-①③은 서로 다른 자격증명(Notion vs GitHub)이라 **한 사람이 한 번에 처리된다는 보장이
-없다** — [권한 요청 문서](9c-update-automation-permission-request.md)의 밸런스 시트(Vault,
-Google Sheets) 승인과도 별개다. 혼동하지 않도록 이 문서와 권한 요청 문서 양쪽 다 이 셋을
-분리해서 적어뒀다.
+②⑨는 서로 다른 자격증명(Notion vs GitHub)이라 **한 사람이 한 번에 처리된다는 보장이
+없다**. 혼동하지 않도록 이 문서와 [권한 요청 문서](9c-update-automation-permission-request.md)
+양쪽 다 이 둘을 분리해서 적어뒀다.
+
+**참고**: 애초에 이 문서와 나란히 검토됐던 ①(밸런스 시트 접근)은 승인 요청 자체가
+빠졌다 — `datasheet-validate`가 읽는 실제 작업 시트를 직접 열어보니 이미 무인증 공개
+상태였다(권한 요청 문서 ① 항목 참고). 자체 확인 3건과는 별개의 발견이라 여기 남겨둔다.
