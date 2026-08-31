@@ -7,6 +7,7 @@ import {
   checkNoticeHeaderFormat,
   checkNoticeEmptyContents,
   checkNoticeFilesAgree,
+  checkNoticeGitMatchesCdn,
   checkGitbookVsNotice,
   checkGitbookVsManifest,
   checkThorInfo,
@@ -113,6 +114,45 @@ describe("checkNoticeFilesAgree", () => {
     const c = checkNoticeFilesAgree({ en: 200450, kr: 200440, jp: 200450 });
     expect(c.level).toBe("WARN");
     expect(c.ok).toBe(false);
+  });
+});
+
+describe("checkNoticeGitMatchesCdn", () => {
+  const head = (header: string, contents: string): NoticeHead => ({
+    file: "TextNotice",
+    header,
+    apv: header === null ? null : Number(header.slice(1)),
+    contents,
+    date: "d",
+  });
+
+  test("OK when CDN and git are byte-identical", () => {
+    const cdn = head("v200450", "hello");
+    const git = head("v200450", "hello");
+    expect(checkNoticeGitMatchesCdn("TextNotice", cdn, git).level).toBe("OK");
+  });
+
+  test("WARN when git is ahead of CDN (normal propagation delay after merge)", () => {
+    const cdn = head("v200450", "old");
+    const git = head("v200460", "new");
+    const c = checkNoticeGitMatchesCdn("TextNotice", cdn, git);
+    expect(c.level).toBe("WARN");
+    expect(c.detail).toContain("전파 지연");
+  });
+
+  test("FATAL when CDN is ahead of git — bypassed the PR process", () => {
+    const cdn = head("v200460", "new");
+    const git = head("v200450", "old");
+    const c = checkNoticeGitMatchesCdn("TextNotice", cdn, git);
+    expect(c.level).toBe("FATAL");
+    expect(c.detail).toContain("PR 절차");
+  });
+
+  test("WARN when headers match but contents differ (cache artifact)", () => {
+    const cdn = head("v200450", "content A");
+    const git = head("v200450", "content B");
+    const c = checkNoticeGitMatchesCdn("TextNotice", cdn, git);
+    expect(c.level).toBe("WARN");
   });
 });
 

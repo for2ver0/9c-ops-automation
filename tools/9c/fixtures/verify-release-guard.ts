@@ -10,7 +10,9 @@ import {
   fetchGitbookHead,
   fetchManifestApv,
   fetchNoticeHead,
+  fetchNoticeHeadFromGit,
   fetchClientBuildInfo,
+  checkNoticeGitMatchesCdn,
 } from "../lib/release-guard";
 
 let failed = 0;
@@ -45,6 +47,11 @@ for (const file of ["TextNotice", "TextNotice_KR", "TextNotice_JP"] as const) {
   const head = await fetchNoticeHead(file);
   check(`${file}.json has a top entry with a v{APV} header`, head.apv !== null, JSON.stringify(head));
   check(`${file}.json top entry has non-empty Contents`, !!head.contents && head.contents.trim().length > 0);
+
+  const gitHead = await fetchNoticeHeadFromGit(file);
+  check(`${file}.json LiveAssets git copy parses the same way`, gitHead.apv !== null, JSON.stringify(gitHead));
+  const cmp = checkNoticeGitMatchesCdn(file, head, gitHead);
+  check(`${file}.json CDN vs LiveAssets git comparison never crashes and returns a level`, ["OK", "WARN", "FATAL"].includes(cmp.level), cmp.detail);
 }
 
 const clientBuild = await fetchClientBuildInfo();
