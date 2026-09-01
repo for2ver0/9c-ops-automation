@@ -24,6 +24,11 @@
  * (SEASON has a per-session refresh bullet, CHAMPIONSHIP does not per the operator,
  * 2026-08-31) — that branching lives in the CLI, not here, same reasoning as the
  * pre-existing scope note about season-type wording belonging to arena-announce.
+ * This section is deliberately independent of `season`: it renders (heading, and lines
+ * when supplied) even when `season` is null, so an operator-confirmed ticketInfo doesn't
+ * silently vanish just because live season lookup failed (e.g. a mid-registration season
+ * with seasonGroupId=0 — found 2026-09-01 when a real PNG came out missing ticket info
+ * with no error for exactly this reason).
  *
  * Block info (start/end block) IS included, and — since arena-season-preview's shared
  * arena-block-time.ts module now exists (it didn't when this file was first written) —
@@ -348,15 +353,16 @@ export function renderRewardTableSvg(input: RewardTablePngInput): string {
       bulletLineSvg(buildBlockInfoBullet(season, dates ? { start: dates.start, end: dates.end } : null), infoTextX, blockBulletY)
     : "";
 
-  let ticketInfoSvg = "";
-  if (season) {
-    ticketInfoSvg += `<text x="${infoLabelX}" y="${ticketHeadingY}" font-size="19" font-weight="700" font-family="Georgia, 'Times New Roman', serif"><tspan fill="${COLORS.sectionOlive}">Ticket</tspan><tspan fill="${COLORS.sectionWhite}"> Information</tspan></text>`;
-    (ticketInfo?.lines ?? []).forEach((line, li) => {
-      const y = ticketBulletStartY + li * infoLineGap;
-      ticketInfoSvg += `<text x="${infoTextX - 18}" y="${y}" font-size="15" fill="${COLORS.bodyText}">•</text>`;
-      ticketInfoSvg += bulletLineSvg(line, infoTextX, y);
-    });
-  }
+  // Independent of `season`: ticketInfo is its own explicit, caller-supplied input (see
+  // scope note atop this file) and must still render when the operator passed real
+  // numbers even if season lookup failed (e.g. groupId=0 while a season is mid-registration)
+  // — otherwise a confirmed value the operator explicitly gave silently disappears.
+  let ticketInfoSvg = `<text x="${infoLabelX}" y="${ticketHeadingY}" font-size="19" font-weight="700" font-family="Georgia, 'Times New Roman', serif"><tspan fill="${COLORS.sectionOlive}">Ticket</tspan><tspan fill="${COLORS.sectionWhite}"> Information</tspan></text>`;
+  (ticketInfo?.lines ?? []).forEach((line, li) => {
+    const y = ticketBulletStartY + li * infoLineGap;
+    ticketInfoSvg += `<text x="${infoTextX - 18}" y="${y}" font-size="15" fill="${COLORS.bodyText}">•</text>`;
+    ticketInfoSvg += bulletLineSvg(line, infoTextX, y);
+  });
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
   <rect x="0" y="0" width="${width}" height="${height}" fill="${COLORS.background}"/>

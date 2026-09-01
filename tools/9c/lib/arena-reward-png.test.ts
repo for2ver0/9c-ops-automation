@@ -62,4 +62,30 @@ describe("renderRewardTableSvg without season info", () => {
     expect(svg).toContain("Test Table");
     expect(svg).not.toContain("Block ");
   });
+
+  test("still renders operator-supplied ticketInfo even though season is null", () => {
+    // Regression for a real bug: ticket info silently disappeared (no error) when live
+    // season lookup failed (e.g. seasonGroupId=0 mid-registration), even though the
+    // operator had explicitly confirmed and passed --ticket-total/--ticket-session.
+    const config: RewardConfig = {
+      rankingPool: 100_000,
+      stakingLv2Multiplier: 0.5,
+      stakingLv3Multiplier: 1.0,
+      couragePassMultiplier: 1.0,
+      groupDefinitions: [{ playerCount: 500, rewardPercentage: 100 }],
+    };
+    const groups = generateTierGroups(config);
+    const tiers = convertTierGroupsToRewardTiers(groups, config);
+    const svg = renderRewardTableSvg({
+      title: "Test Table",
+      groups,
+      tiers,
+      rankingPool: config.rankingPool,
+      season: null,
+      ticketInfo: { lines: [[{ text: "You can buy up to " }, { text: "5000", color: "amber" }, { text: " tickets" }]] },
+    });
+    expect(svg).toContain("Ticket");
+    expect(svg).toContain("Information");
+    expect(svg).toContain("5000");
+  });
 });
