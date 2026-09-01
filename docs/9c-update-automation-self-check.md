@@ -108,18 +108,40 @@ HTML에 GitBook 자체가 내장한 메타데이터가 있다:
 
 ## 덤으로 확인한 것 — 부록 A-1 정밀 검증
 
-자체 확인 3건은 아니지만, ③을 조사하던 김에 설계 문서 부록 A-1이 `datasheet-to-csv`를
-"신규"가 아니라 "기존 도구 확장"으로 규정한 근거를 공개 GitHub 정보로 재확인했다:
+> **2026-09-01 정정**: 아래 표의 파일 수·`RestrictionSheet.csv` 관련 두 줄은 2026-08-30/31
+> 시점 기준이었다. **다시 확인해보니 지금은(2026-09-01) `main`과 `development`의
+> `Lib9c/TableCSV` 파일 목록이 완전히 동일하다(둘 다 140개, diff 0건)** — blobless
+> shallow clone(`git ls-tree`, GitHub REST API 리밋 없이 확인 가능)으로 직접 비교했다.
+> `RestrictionSheet.csv`는 이제 `main`에도 있다(`raw.githubusercontent.com/.../main/...`
+> 200). 즉 그 시점엔 진짜 차이였던 게 그 사이 머지로 없어진 것으로 보인다 — **"main과
+> development가 항상 벌어져 있다"고 가정하면 안 된다**는 뜻이다. 아래 원래 표는 그 시점
+> 기록으로 남겨두고, 커밋 `8640286b70`의 성격도 다시 보니 부정확하게 적혀 있었다(바로
+> 아래 정정 참고).
 
-| 주장 | 확인 결과 |
-| --- | --- |
-| `Lib9c/TableCSV` 파일 수: main 139개 / development 140개 | **정확히 일치** (공개 API로 재계산) |
-| 차이는 `RestrictionSheet.csv` 1개, development 전용 | **일치** (main 404 / development 200) |
-| 커밋 `b4685efed2`: "v200450 export tool corrupted 10 of 23 sheets... SkillBuffSheet 188 rows dropped" | **실존 확인, 메시지 내용도 일치** |
-| 커밋 `8640286b70`: development 전용 신규 파일 커밋 | **실존 확인** |
+| 주장(2026-08-30/31 확인) | 그때 결과 | 2026-09-01 재확인 |
+| --- | --- | --- |
+| `Lib9c/TableCSV` 파일 수: main 139개 / development 140개 | 정확히 일치 | **더 이상 사실 아님 — 지금은 둘 다 140개, diff 0** |
+| 차이는 `RestrictionSheet.csv` 1개, development 전용 | 일치(main 404 / development 200) | **더 이상 사실 아님 — 지금은 main에도 있음(200)** |
+| 커밋 `b4685efed2`: "v200450 export tool corrupted 10 of 23 sheets... SkillBuffSheet 188 rows dropped" | 실존 확인, 메시지 내용도 일치 | 재확인함, 여전히 정확 — 이 커밋은 정말로 CSV 10개만 재익스포트한 순수 데이터 수정 |
+| 커밋 `8640286b70`: development 전용 신규 파일 커밋 | 실존 확인 | **부정확했음 — 아래 정정 참고** |
+
+**커밋 `8640286b70` 정정**: 이 커밋은 "신규 파일 추가"가 아니라 `TradePolicySheet.csv` →
+`RestrictionSheet.csv` **이름 변경**이고, 그것도 시트 이름 변경·검증 로직 추가·다수 테스트
+파일 수정을 포함한 대규모 C# 리팩터 커밋(17개 파일, +294/-77줄) 안에 CSV 리네임 한 줄이
+끼어 있는 것이다("fix: 래핑된 아이템 통화 우회 차단 + 정책 인자 필수화 + 시트 개명", 작성자
+Yang Chun Ung/GitHub 계정 `ipdae`, 2026-08-26, Claude 공동저자). 밸런스 시트 CSV **하나만**
+바꾸는 커밋이 아니었다 — `.patch` 파일을 직접 받아 전체 diff를 확인해서 잡았다.
 
 즉 "이미 있는 구글시트→CSV 익스포트 도구가 실제로 사고를 낸 적이 있다"는 설계 문서의 전제는
-근거가 있다 — `datasheet-to-csv`를 실제 착수할 때 "확장 vs 신규" 판단에 안심하고 쓸 수 있다.
+`b4685efed2` 하나로는 여전히 근거가 있다 — `datasheet-to-csv`를 실제 착수할 때 "확장 vs
+신규" 판단에 쓸 수 있다. 다만 main/development 파일 수 차이는 이제 근거로 쓸 수 없다.
+
+**⑦(기존 도구 소유·운영 절차)에 대한 부분적 단서**: `b4685efed2`(export tool 사고
+postmortem)와 `8640286b70`(시트 리네임 리팩터) 둘 다 같은 사람(Yang Chun Ung, GitHub
+`ipdae`)이 커밋했다 — Claude를 co-author로 함께 쓰는 것도 두 커밋 다 동일하다. 이 두
+데이터 포인트만으로 "이 사람이 지금 export 도구를 전담 운영한다"고 단정할 근거는 아니다
+(같은 기간 다른 사람이 낸 TableCSV 커밋이 있는지까지는 확인 안 했다) — 그래도 ⑦ 질문에
+답할 담당자를 찾을 때 참고할 만한 첫 단서는 된다.
 
 ## 다음에 할 일
 
