@@ -40,10 +40,19 @@ Connections 메뉴에서 확인해야 한다.
 
 **갭**: 설계 문서는 이 레포를 "LiveAssets"라고 줄여 불렀지만 실제 정식 이름은
 `planetarium/NineChronicles.LiveAssets`다(공개 레포, 확인됨). 그런데 **`Atralupus` 계정엔 이
-레포의 fork가 아직 없다.** `datasheet-to-csv` 2차 확장(L10n CSV PR)이나 `release-notes`/
-`announce-fanout`이 여기 PR을 내려면 먼저 이 fork부터 떠야 한다 — 설계 문서엔 없던 준비
-작업이다. **fork 생성은 GitHub 쓰기 권한이 필요해 이 개발 환경에서 대신 실행할 수 없다 —
-사람이 GitHub UI에서 클릭 한 번으로 하면 된다(Fork 버튼).**
+레포의 fork가 아직 없다.** 조사 당시(2026-08-31)엔 `datasheet-to-csv` 2차 확장(L10n CSV
+PR)이나 `release-notes`/`announce-fanout`이 여기 PR을 낼 걸로 예상해 준비 작업으로
+적어뒀는데, **실제로 두 스킬을 만들어보니(2026-09-01) 둘 다 이 fork가 필요 없었다**:
+
+- `release-notes`는 GitHub에 전혀 접근하지 않는다 — 릴리즈 노트는 깃북 에디터에서 직접
+  작성되고 GitHub 레포는 편도 백업(export) 대상일 뿐이라는 게 확인됐다(⑥ 조사 결과 참고).
+- `announce-fanout`은 `TextNotice*.json`을 CDN에서 읽기만 하고, 초안을 만들 뿐 어디에도
+  PR을 내지 않는다(게시는 항상 사람).
+
+그래서 지금 이 fork를 실제로 쓰는 곳은 `datasheet-to-csv`의 2차 확장(L10n CSV PR)뿐이고,
+그 스킬 자체가 1차도 아직 미착수다. **지금 당장 막혀 있는 게 아니라 미래에 필요할 수 있는
+준비 작업**으로 급을 낮춘다 — fork 생성 자체는 여전히 GitHub 쓰기 권한이 필요해 이 개발
+환경에서 대신 실행할 수 없다(필요해지면 사람이 GitHub UI에서 클릭 한 번, Fork 버튼).
 
 부수 확인(범위 밖이지만 교차검증에 유용): `NineChronicles.LiveAssets/Assets/Json`에
 `TextNotice.json`/`_KR`/`_JP`, `Assets/Csv/RemoteCsv.csv`가 실제로 git 관리되고 있는 반면
@@ -114,7 +123,9 @@ HTML에 GitBook 자체가 내장한 메타데이터가 있다:
 
 ## 다음에 할 일
 
-- ③ 갭 해소: `Atralupus`에 `NineChronicles.LiveAssets` fork 생성 (사람, GitHub UI 클릭 1회)
+- ③ 갭 — 급하지 않음으로 낮춤(2026-09-01 재확인). `datasheet-to-csv` 2차 확장(아직 1차도
+  미착수) 착수 시점에 가서 `Atralupus`에 `NineChronicles.LiveAssets` fork 생성(사람,
+  GitHub UI 클릭 1회)하면 됨 — 지금 만들어진 release-notes/announce-fanout은 필요 없음
 - ② 노션 확인: Notion 접근 권한을 가진 사람이 Connections 메뉴에서 확인
 - ⑥ 해소됨 — `release-notes` 착수 시 실제 과거 릴리즈 노트 형식을 분석해 초안 템플릿만
   잡으면 됨(권한/토큰 불필요)

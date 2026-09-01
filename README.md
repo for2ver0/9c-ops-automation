@@ -31,11 +31,11 @@
 
 | 스킬 | 역할 | 상태 |
 | --- | --- | --- |
-| [`release-guard`](.claude/skills/release-guard/SKILL.md) | 깃북 릴리즈 노트 vs 메인넷 APV vs 인게임 공지판 일관성 대조 | 부분 구현 — 일관성·헤드 대조만, `Event.json` 스냅샷은 S3 권한 대기 |
+| [`release-guard`](.claude/skills/release-guard/SKILL.md) | 깃북 릴리즈 노트 vs 메인넷 APV vs 인게임 공지판 일관성 대조 + `Event.json` 현재 값 스냅샷 | 부분 구현 — 일관성·헤드 대조 + Event.json 현재 값 스냅샷(`--event-log-file`, 2026-09-01 확인: 공개 CDN이 S3와 같은 오브젝트라 권한 불필요). 과거 버전 소급 조회만 S3 권한 대기(범위 좁아짐) |
 | [`datasheet-validate`](.claude/skills/datasheet-validate/SKILL.md) | 밸런스 시트 CSV 구조적 검증 + 회차 간 diff(1차 필수) | 부분 구현 — 중복 헤더·행별 컬럼 수·키 컬럼 공백·행 수 급감(v200450 실패 모드 3종 회귀 포함)·`--baseline-csv` 회차 diff(qa-checklist의 diffSheet 재사용, 미해결 B 중 diff 기준선 쪽은 lib9c git 이력 조사로 "별도 스냅샷"으로 판단 — 대상 브랜치·PR 타겟 쪽은 여전히 미결정). 시트 간 참조 ID·타입 검증만 lib9c 스키마 매핑 선행 필요로 미착수 |
 | [`deploy-prep`](.claude/skills/deploy-prep/SKILL.md) | 배포 전/후 체크리스트 + `latest.json` 롤백 스냅샷 + APV 결번 검사(release-guard 로직 재사용) | 부분 구현 — Manage Apv 워크플로 실제 트리거·PR/브랜치/태그/changelog 자동화는 D4 원칙(자동화가 라이브를 안 바꿈)상 범위 밖, 입력값 계산까지만 하고 항상 사람이 실행 |
 | [`qa-checklist`](.claude/skills/qa-checklist/SKILL.md) | 시트 CSV 전/후 diff → 추가·삭제·변경 행 QA 체크리스트 | 부분 구현 — "무엇이 바뀌었는지"만. "그래서 무엇을 테스트해야 하는지"(시트별 기능 매핑)는 lib9c 도메인 지식 필요로 미착수 |
-| [`announce-fanout`](.claude/skills/announce-fanout/SKILL.md) | 인게임 공지(EN/KR/JP) → 디스코드 공지 초안 재포장 + 언어별 불일치 검사 | 부분 구현 — 정규 업데이트 공지 변환만. 휴장/이벤트 공지 초안(`Event.json` 기반)은 S3 권한 대기로 미착수 |
+| [`announce-fanout`](.claude/skills/announce-fanout/SKILL.md) | 인게임 공지(EN/KR/JP) → 디스코드 공지 초안 재포장 + 언어별 불일치 검사 | 부분 구현 — 정규 업데이트 공지 변환만. 휴장/이벤트 공지 초안은 미착수 — Event.json 읽기 자체는 더 이상 안 막혀 있지만(2026-09-01 확인), 그 파일엔 배너 메타데이터만 있고 초안화할 문구가 없음 |
 | `spec-to-datasheet` / `datasheet-to-csv` | 밸런스 시트 파이프라인 나머지 2종(1차 필수) | 미착수 — 각각 노션 공유 확인·(lib9c push 확인 + 기존 CSV 익스포트 도구 소유·운영 실태 조사) 필요 |
 | [`release-notes`](.claude/skills/release-notes/SKILL.md) | 버전+카테고리별 항목 → 깃북 붙여넣기용 릴리즈 노트 초안 | 부분 구현 — 버전 대사(+10 관행, 중복 게시 방지)·섹션 정리만. ⑥ 확인(깃북 에디터 직접 입력, GitHub 토큰 불필요)으로 착수. 문구는 짓지 않고 사람이 준 것만 정리 — 정확한 마크다운 문법은 원본 저장소(`nine-chronicles-docs`, 비공개) 미확인으로 검증 못 함 |
 

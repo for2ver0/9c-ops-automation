@@ -13,9 +13,12 @@ import {
   checkThorInfo,
   findStaleSince,
   checkGitbookStaleness,
+  checkEventJsonSnapshot,
   overallLevel,
   type LogEntry,
   type NoticeHead,
+  type EventJsonSnapshot,
+  type EventJsonLogEntry,
 } from "./release-guard";
 
 describe("parseGitbookHead", () => {
@@ -283,5 +286,46 @@ describe("overallLevel", () => {
         { id: "b", name: "b", ok: false, level: "WARN", detail: "" },
       ]),
     ).toBe("WARN");
+  });
+});
+
+function eventSnapshot(versionId: string | null, body = "{}"): EventJsonSnapshot {
+  return { observedAt: "2026-09-01T00:00:00Z", versionId, etag: null, lastModified: null, body };
+}
+
+function eventLogEntry(observedAt: string, versionId: string | null): EventJsonLogEntry {
+  return { observedAt, versionId, etag: null, bodyLength: 2 };
+}
+
+describe("checkEventJsonSnapshot", () => {
+  test("OK and says 'first snapshot' when the log is empty (not a warning — nothing to compare yet)", () => {
+    const c = checkEventJsonSnapshot(eventSnapshot("v1"), []);
+    expect(c.level).toBe("OK");
+    expect(c.detail).toContain("첫 스냅샷");
+  });
+
+  test("OK and says 'unchanged' when versionId matches the most recent logged entry", () => {
+    const c = checkEventJsonSnapshot(eventSnapshot("v1"), [eventLogEntry("2026-08-01T00:00:00Z", "v1")]);
+    expect(c.level).toBe("OK");
+    expect(c.detail).toContain("변경 없음");
+  });
+
+  test("OK (not FATAL/WARN) and says 'changed' when versionId differs — a change is normal, not an error", () => {
+    const c = checkEventJsonSnapshot(eventSnapshot("v2"), [eventLogEntry("2026-08-01T00:00:00Z", "v1")]);
+    expect(c.level).toBe("OK");
+    expect(c.detail).toContain("변경 감지됨");
+    expect(c.detail).toContain("v1");
+    expect(c.detail).toContain("v2");
+  });
+
+  test("compares against the most recent entry even when the log is out of order", () => {
+    const log = [eventLogEntry("2026-08-25T00:00:00Z", "v3"), eventLogEntry("2026-08-01T00:00:00Z", "v1")];
+    const c = checkEventJsonSnapshot(eventSnapshot("v3"), log);
+    expect(c.detail).toContain("변경 없음");
+  });
+
+  test("never crashes when versionId is null (e.g. bucket versioning off, or header missing)", () => {
+    const c = checkEventJsonSnapshot(eventSnapshot(null), [eventLogEntry("2026-08-01T00:00:00Z", null)]);
+    expect(c.level).toBe("OK");
   });
 });

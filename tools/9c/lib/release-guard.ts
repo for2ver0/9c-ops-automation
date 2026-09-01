@@ -137,6 +137,17 @@ const MANIFEST_BASE = "https://raw.githubusercontent.com/planetarium/9c-infra/ma
 const NOTICE_BASE = "https://assets.nine-chronicles.com/live-assets/Json";
 const NOTICE_GIT_BASE = "https://raw.githubusercontent.com/planetarium/NineChronicles.LiveAssets/main/Assets/Json";
 const LATEST_JSON_URL = "https://release.nine-chronicles.com/main/player/latest.json";
+/** 2026-09-01 확인(담당자 제보 + 이 세션 직접 재현): 이 CDN URL은 인증 없는 공개 GET이고,
+ *  게임 클라이언트가 실제로 읽는 것과 같은 오브젝트다(NineChronicles/nekoyume/Assets/
+ *  Resources/ScriptableObject/LiveAssetEndpoint.asset의 EventJsonUrl), Backoffice가 쓰는
+ *  S3 키(9c-assets/live-assets/Json/Event.json, EventBannerJsonService.cs)와도 동일하다.
+ *  즉 "현재 값 읽기"에는 S3 자격증명이 전혀 필요 없다 — 부록 D가 전제했던 "S3 읽기 권한
+ *  없이는 스냅샷 자체가 성립 안 한다"는 가정이 틀렸다. 응답 헤더에 x-amz-version-id가
+ *  실려 오는 것도 확인됐다(버킷 versioning 켜짐 — S3 쪽엔 과거 버전이 이미 남아있다는 뜻,
+ *  다만 그 이력을 "소급 조회"하려면 s3:GetObjectVersion 같은 진짜 자격증명이 별도로
+ *  필요하다. 이건 여전히 S3 권한 요청 대상 — docs/9c-update-automation-permission-request.md
+ *  ⑧ 참고, 범위가 좁아짐). */
+const EVENT_JSON_URL = "https://assets.nine-chronicles.com/live-assets/Json/Event.json";
 
 async function fetchText(url: string): Promise<string> {
   const res = await fetch(url);
@@ -188,6 +199,36 @@ export async function fetchClientBuildInfo(): Promise<ClientBuildInfo> {
   if (!res.ok) throw new Error(`GET ${LATEST_JSON_URL} -> HTTP ${res.status}`);
   const body = (await res.json()) as { version: number; timestamp: string };
   return { version: body.version, timestamp: body.timestamp };
+}
+
+export interface EventJsonSnapshot {
+  readonly observedAt: string;
+  /** S3 버킷 versioning이 켜져 있어야만 값이 온다 — 2026-09-01 라이브로 확인됨. 이 버전
+   *  id가 있어야 나중에 "그때 정확히 어떤 S3 버전을 떴는지" 소급 확인할 수 있다(CDN 캐시가
+   *  옛 값을 물고 있을 위험을 상쇄). */
+  readonly versionId: string | null;
+  readonly etag: string | null;
+  readonly lastModified: string | null;
+  /** 원문 그대로 — 다음 실행과 텍스트 diff를 뜰 수 있게. */
+  readonly body: string;
+}
+
+/** CDN(CloudFront 경유) 공개 읽기 — S3 자격증명 불필요. CloudFront가 캐시를 이미 우회한
+ *  것까지 2026-09-01 라이브로 확인됨(`X-Cache: Miss from cloudfront`가 뜬 응답 확보). 그래도
+ *  캐시가 낀 응답이 완전히 배제되진 않으므로, 호출부는 매 스냅샷마다 이 함수가 반환하는
+ *  `versionId`/`etag`를 반드시 같이 기록해 "몇 번 캐시를 못 뚫었는지"를 사후에 알 수 있게
+ *  해야 한다. */
+export async function fetchEventJsonSnapshot(): Promise<EventJsonSnapshot> {
+  const res = await fetch(EVENT_JSON_URL);
+  if (!res.ok) throw new Error(`GET ${EVENT_JSON_URL} -> HTTP ${res.status}`);
+  const body = await res.text();
+  return {
+    observedAt: new Date().toISOString(),
+    versionId: res.headers.get("x-amz-version-id"),
+    etag: res.headers.get("etag"),
+    lastModified: res.headers.get("last-modified"),
+    body,
+  };
 }
 
 // ---------------------------------------------------------------------------------------
@@ -429,6 +470,44 @@ export function checkGitbookStaleness(current: LogEntry, staleSince: string | nu
     ok: false,
     level: "WARN",
     detail: `깃북 미갱신 ${elapsedHours}시간째 (${staleSince}부터 관측) — 아직 24시간 유예 범위입니다.`,
+  };
+}
+
+/** 로그에 남기는 요약 — 원문 전체를 매번 다시 남기면 diff 계산이 무겁고 로그가 커지므로,
+ *  버전 식별자와 길이만 남긴다. 원문 자체를 보존하고 싶으면 호출부가 `body`를 별도 파일로
+ *  저장하면 된다(이 모듈은 그 저장 방식을 강제하지 않는다). */
+export interface EventJsonLogEntry {
+  readonly observedAt: string;
+  readonly versionId: string | null;
+  readonly etag: string | null;
+  readonly bodyLength: number;
+}
+
+/** Event.json이 직전 관측 대비 바뀌었는지 알려준다. 바뀌는 것 자체는 정상(담당자가 이벤트를
+ *  운영하는 일상 행위)이라 항상 OK — 이건 게이트가 아니라 "언제 뭐가 바뀌었는지" 감사
+ *  기록을 남기기 위한 정보성 체크다. */
+export function checkEventJsonSnapshot(current: EventJsonSnapshot, priorLog: readonly EventJsonLogEntry[]): Check {
+  const id = "event-json-snapshot";
+  const name = "Event.json 스냅샷";
+  if (priorLog.length === 0) {
+    return {
+      id,
+      name,
+      ok: true,
+      level: "OK",
+      detail: `첫 스냅샷 기록 (versionId=${current.versionId ?? "알 수 없음"}, ${current.body.length}바이트).`,
+    };
+  }
+  const last = [...priorLog].sort((a, b) => a.observedAt.localeCompare(b.observedAt)).at(-1)!;
+  if (last.versionId !== null && current.versionId !== null && last.versionId === current.versionId) {
+    return { id, name, ok: true, level: "OK", detail: `변경 없음 (versionId=${current.versionId}, 직전 관측 ${last.observedAt}).` };
+  }
+  return {
+    id,
+    name,
+    ok: true,
+    level: "OK",
+    detail: `변경 감지됨 (versionId ${last.versionId ?? "알 수 없음"} → ${current.versionId ?? "알 수 없음"}, 직전 관측 ${last.observedAt}).`,
   };
 }
 

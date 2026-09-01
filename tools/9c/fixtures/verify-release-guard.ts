@@ -12,7 +12,9 @@ import {
   fetchNoticeHead,
   fetchNoticeHeadFromGit,
   fetchClientBuildInfo,
+  fetchEventJsonSnapshot,
   checkNoticeGitMatchesCdn,
+  checkEventJsonSnapshot,
 } from "../lib/release-guard";
 
 let failed = 0;
@@ -56,6 +58,25 @@ for (const file of ["TextNotice", "TextNotice_KR", "TextNotice_JP"] as const) {
 
 const clientBuild = await fetchClientBuildInfo();
 check("latest.json version field present", typeof clientBuild.version === "number" && clientBuild.version > 0);
+
+// Event.json — confirmed 2026-09-01 (domain owner tip) to be the same S3 object served over a
+// public CDN, no credentials needed for reading the current value. versionId confirms the
+// bucket has versioning on (S3-side history exists even without this snapshot mechanism).
+const eventSnapshot = await fetchEventJsonSnapshot();
+check("Event.json CDN read succeeds without auth", eventSnapshot.body.length > 0, `got ${eventSnapshot.body.length} bytes`);
+check("Event.json response carries x-amz-version-id (bucket versioning is on)", eventSnapshot.versionId !== null, JSON.stringify(eventSnapshot.versionId));
+check("Event.json body parses as JSON (sanity — it's meant to be)", (() => {
+  try {
+    JSON.parse(eventSnapshot.body);
+    return true;
+  } catch {
+    return false;
+  }
+})());
+const selfCompare = checkEventJsonSnapshot(eventSnapshot, [
+  { observedAt: "2020-01-01T00:00:00Z", versionId: eventSnapshot.versionId, etag: eventSnapshot.etag, bodyLength: eventSnapshot.body.length },
+]);
+check("checkEventJsonSnapshot reports 'unchanged' when compared against its own versionId", selfCompare.detail.includes("변경 없음"), selfCompare.detail);
 
 console.log(failed ? `\n${failed} case(s) FAILED` : "\nall cases pass (live, as of run time)");
 process.exit(failed ? 1 : 0);
