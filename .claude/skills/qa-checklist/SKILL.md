@@ -16,8 +16,8 @@ description: Nine Chronicles 밸런스 시트를 CSV로 내보낸 전/후 두 �
 
 - **시트 diff** — 전/후 CSV를 키 컬럼 기준으로 대조해 어떤 행이 추가/삭제됐고, 어떤 행의
   어떤 컬럼 값이 바뀌었는지 계산하는 건 시트가 무슨 스키마인지 몰라도 할 수 있다. **이번에
-  만든 것.** `datasheet-validate`의 RFC4180 CSV 파서(`tools/9c/lib/datasheet-validate.ts`의
-  `parseCsv`)를 그대로 재사용한다.
+  만든 것.** RFC4180 CSV 파서(`tools/9c/lib/csv.ts`, `datasheet-validate`와 공유)를 그대로
+  재사용한다.
 - **"이 시트가 바뀌면 어떤 기능을 테스트해야 하는지"** — 예를 들어 `SkillSheet`이 바뀌면
   스킬 데미지를, `MaterialItemSheet`이 바뀌면 제작을 테스트해야 한다는 매핑은 시트마다 다른
   lib9c 도메인 지식이 필요하다. `datasheet-validate`가 "시트 간 참조 ID 검증"을 스키마
@@ -32,8 +32,13 @@ description: Nine Chronicles 밸런스 시트를 CSV로 내보낸 전/후 두 �
 | 도구 | 위치 | 역할 |
 | --- | --- | --- |
 | `qa-checklist.ts` | `tools/9c/qa-checklist.ts` (bun) | CLI 본체 |
-| diff/체크리스트 로직 | `tools/9c/lib/qa-checklist.ts` | 순수 함수(유닛 테스트 대상) — `datasheet-validate.ts`의 `parseCsv` 재사용 |
+| diff/체크리스트 로직 | `tools/9c/lib/qa-checklist.ts` | 순수 함수(유닛 테스트 대상) — CSV 파서는 `./csv`(datasheet-validate와 공유)에서 가져옴 |
 | 유닛 테스트 | `tools/9c/lib/qa-checklist.test.ts` | diff 분류·체크리스트 문구·중복 키 처리, 네트워크 없이 실행 |
+
+**2026-09-01 추가** — 이 모듈의 `diffSheet`는 `datasheet-validate`의 "회차 간 diff(N 대
+N-1)" 검사에도 그대로 재사용된다(`datasheet-validate.ts`가 이 파일을 import). CSV 파서
+(`parseCsv`)는 애초에 `./csv`라는 별도 모듈에 있다 — 두 lib이 서로의 함수를 가져다 쓰면서
+생기는 순환 참조를 막기 위해서다.
 
 실행: `bun test tools/9c/lib/qa-checklist.test.ts`. 네트워크를 안 쓰는 순수 로컬 도구라 별도
 라이브 검증기는 없다(datasheet-validate/release-guard와 달리 인증·공개 엔드포인트 의존이
@@ -77,8 +82,11 @@ bun run tools/9c/qa-checklist.ts --sheet-name MaterialItemSheet --before old.csv
 - **실제 QA 실행·케이스 이슈 등록** — 이 스킬은 텍스트 체크리스트만 낸다. 이슈 트래커에
   올리는 건 사람이 한다(D4 원칙과 무관하게, 애초에 이 스킬이 다루는 범위가 아님).
 - **회차 간 자동 기준선 선택** (N-1을 어디서 가져올지) — `datasheet-validate`의 미해결 B와
-  같은 문제. 이 스킬은 `--before`/`--after`를 사람이 직접 지정하게 해서 이 문제를 우회한다
-  — 무엇을 "이전"으로 볼지는 항상 사람이 정한다.
+  같은 문제였는데, 2026-09-01 lib9c 공개 git 이력 조사로 "자동으로 가져올 방법 자체가
+  없다"는 게 확인됐다(태그·"latest-data" 브랜치 모두 지금 APV 범위보다 훨씬 전에 관리가
+  끊김 — `datasheet-validate` SKILL.md 참고). 즉 이 스킬이 처음부터 `--before`/`--after`를
+  사람이 직접 지정하게 한 건 우회가 아니라 유일하게 가능한 접근이었다는 뜻이다 — 무엇을
+  "이전"으로 볼지는 항상 사람이 정한다.
 - **타입 인식 diff** (숫자 컬럼의 증감 방향, 퍼센트 변화 등) — 값은 항상 문자열로 비교한다.
   `"100"`과 `"100.0"`은 다른 값으로 잡힌다 — 시트마다 포맷 관례가 다를 수 있어 임의로
   정규화하지 않는다.
@@ -89,4 +97,4 @@ bun run tools/9c/qa-checklist.ts --sheet-name MaterialItemSheet --before old.csv
 | --- | --- | --- |
 | 시트별 기능 매핑 | 미착수 | lib9c 시트→기능 매핑 (별도 조사, `datasheet-validate`의 참조 ID 검증과 공유 가능) |
 | 숫자/타입 인식 비교 | 미착수 | 시트별 컬럼 타입 정의 (별도 조사) |
-| 회차 간 자동 기준선 | 미착수 | 비교 기준선 저장 방식 결정(미해결 B) |
+| 회차 간 자동 기준선 | 해소됨(2026-09-01) — git 기반 자동 선택이 불가능하다는 게 확인돼, 사람이 `--before`/`--after`를 직접 지정하는 현재 방식이 유지된다 | (없음) |

@@ -113,4 +113,4 @@ FATAL(매니페스트가 깃북보다 뒤처짐 = APV 결번 의심)이 있으�
 | Manage Apv 워크플로 실제 트리거 | 미착수(의도적) | GitHub Actions 실행 권한 — 항상 사람이 실행(D4) |
 | 배포 PR/브랜치/태그/changelog 자동화 | 미착수 | GitHub PR 쓰기 토큰 + D4 원칙 재검토 필요 |
 | 롤백 스냅샷 로그를 레포에 실제로 커밋해 지속시키는 것 | 로컬 파일 append만 구현됨 | 사람이 주기 실행마다 커밋(release-guard `--log-file`과 동일 패턴) |
-| APV ↔ latest.json version 인코딩 규칙 | 미해결 B | 관측 축적 후 재검토 |
+| APV ↔ latest.json version 인코딩 규칙 | 관측 1건뿐이라 미결정 (설계 문서 부록 E, "미해결 B"와는 다른 별개 항목) | 관측 축적 후 재검토 |

@@ -13,8 +13,12 @@
  * 그래서 이 모듈이 실제로 내는 체크리스트는 "이 시트의 Id N번, 컬럼 X가 A→B로 바뀌었다"
  * 수준의 **사실 목록**이다. "그래서 뭘 테스트해야 하는지"는 QA 담당자가 채운다 — 이 모듈은
  * 어디를 봐야 하는지 정확히 짚어주는 것까지만 한다.
+ *
+ * `diffSheet`는 이후 `datasheet-validate.ts`의 "회차 간 시트 diff" 검사에도 그대로
+ * 재사용된다(중복 구현 안 함). CSV 파서(`parseCsv`)는 `./csv`에 있다 — 이 모듈과
+ * datasheet-validate가 서로의 함수를 가져다 쓰는 순환 참조를 만들지 않기 위해서다.
  */
-import { parseCsv, type ParsedCsv } from "./datasheet-validate";
+import { parseCsv, type ParsedCsv } from "./csv";
 
 export { parseCsv };
 export type { ParsedCsv };

@@ -5,6 +5,7 @@ import {
   checkRowColumnCounts,
   checkKeyColumnNonEmpty,
   checkRowCountAgainstBaseline,
+  checkBaselineDiff,
   overallLevel,
   runStructuralChecks,
 } from "./datasheet-validate";
@@ -144,6 +145,55 @@ describe("checkRowCountAgainstBaseline", () => {
   });
 });
 
+describe("checkBaselineDiff", () => {
+  test("OK (informational), skipped when there is no baseline CSV yet", () => {
+    const csv = parseCsv("Id,Name\n1,Sword\n");
+    const result = checkBaselineDiff(csv, null, "Id");
+    expect(result.level).toBe("OK");
+    expect(result.detail).toContain("건너뜁니다");
+  });
+
+  test("WARN (not blocking) when no key column is given, even with a baseline present", () => {
+    const baseline = parseCsv("Id,Name\n1,Sword\n");
+    const csv = parseCsv("Id,Name\n1,Sword\n2,Shield\n");
+    const result = checkBaselineDiff(csv, baseline, null);
+    expect(result.level).toBe("WARN");
+  });
+
+  test("OK and reports counts when rows/columns changed — never escalates to FATAL by itself", () => {
+    const baseline = parseCsv("Id,Damage\n1,100\n2,50\n");
+    const csv = parseCsv("Id,Damage\n1,120\n3,30\n");
+    const result = checkBaselineDiff(csv, baseline, "Id");
+    expect(result.level).toBe("OK");
+    expect(result.detail).toContain("추가 1행");
+    expect(result.detail).toContain("삭제 1행");
+    expect(result.detail).toContain("변경 1행");
+  });
+
+  test("does not invent a 'too much changed' threshold — even a near-total rewrite stays OK", () => {
+    const baseline = parseCsv("Id,Damage\n1,1\n2,1\n3,1\n4,1\n5,1\n");
+    const csv = parseCsv("Id,Damage\n1,9\n2,9\n3,9\n4,9\n5,9\n");
+    const result = checkBaselineDiff(csv, baseline, "Id");
+    expect(result.level).toBe("OK");
+    expect(result.detail).toContain("변경 5행");
+  });
+
+  test("flags duplicate keys in the note rather than silently trusting the diff", () => {
+    const baseline = parseCsv("Id,Damage\n1,100\n1,200\n");
+    const csv = parseCsv("Id,Damage\n1,100\n");
+    const result = checkBaselineDiff(csv, baseline, "Id");
+    expect(result.detail).toContain("중복 키");
+  });
+
+  test("degrades to WARN (not a crash) when the key column is missing from one file", () => {
+    const baseline = parseCsv("Uid,Damage\n1,100\n");
+    const csv = parseCsv("Id,Damage\n1,100\n");
+    const result = checkBaselineDiff(csv, baseline, "Id");
+    expect(result.level).toBe("WARN");
+    expect(result.ok).toBe(false);
+  });
+});
+
 describe("overallLevel", () => {
   test("FATAL wins over WARN and OK", () => {
     expect(overallLevel([{ id: "a", name: "a", ok: true, level: "OK", detail: "" }, { id: "b", name: "b", ok: false, level: "FATAL", detail: "" }])).toBe(
@@ -185,5 +235,29 @@ describe("runStructuralChecks — v200450 regression scenarios end-to-end", () =
     const csv = parseCsv("Id,Name\n1,Sword\n");
     const checks = runStructuralChecks(csv, { keyColumn: "Id", baselineRows: 188 });
     expect(overallLevel(checks)).toBe("FATAL");
+  });
+
+  test("baselineCsv alone (no --baseline-rows) is enough to catch a row-count drop", () => {
+    const baseline = parseCsv("Id,Name\n1,A\n2,B\n3,C\n");
+    const csv = parseCsv("Id,Name\n1,A\n");
+    const checks = runStructuralChecks(csv, { keyColumn: "Id", baselineRows: null, baselineCsv: baseline });
+    expect(overallLevel(checks)).toBe("FATAL");
+    expect(checks.find((c) => c.id === "row-count-vs-baseline")?.detail).toContain("직전 3행");
+  });
+
+  test("explicit baselineRows takes precedence over baselineCsv's row count when both given", () => {
+    const baseline = parseCsv("Id,Name\n1,A\n2,B\n3,C\n"); // 3 rows
+    const csv = parseCsv("Id,Name\n1,A\n2,B\n");
+    const checks = runStructuralChecks(csv, { keyColumn: "Id", baselineRows: 1, baselineCsv: baseline });
+    // baselineRows=1 explicitly wins, so 2 rows now vs baseline 1 should be a non-drop (OK)
+    expect(checks.find((c) => c.id === "row-count-vs-baseline")?.level).toBe("OK");
+  });
+
+  test("baselineCsv also feeds the row/column diff check", () => {
+    const baseline = parseCsv("Id,Name\n1,A\n2,B\n");
+    const csv = parseCsv("Id,Name\n1,A\n2,B\n3,C\n");
+    const checks = runStructuralChecks(csv, { keyColumn: "Id", baselineRows: null, baselineCsv: baseline });
+    const diffCheck = checks.find((c) => c.id === "baseline-diff");
+    expect(diffCheck?.detail).toContain("추가 1행");
   });
 });

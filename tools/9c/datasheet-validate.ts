@@ -16,15 +16,20 @@
  *   # 직전 실행의 행 수를 기준값으로 넘겨 급감 검출
  *   bun run tools/9c/datasheet-validate.ts --csv ./MaterialItemSheet.csv --key-column Id --baseline-rows 421
  *
+ *   # 직전 회차 CSV 전체를 넘겨 회차 간 diff(추가/삭제/변경 행·컬럼) 확인 — 행 수 급감
+ *   # 검사도 이 파일에서 자동으로 기준값을 뽑아 씀(--baseline-rows 별도 지정 불필요)
+ *   bun run tools/9c/datasheet-validate.ts --csv ./MaterialItemSheet.csv --key-column Id --baseline-csv ./MaterialItemSheet.prev.csv
+ *
  *   bun run tools/9c/datasheet-validate.ts --csv ./x.csv --json
  */
-import { parseCsv, runStructuralChecks, overallLevel, type Check } from "./lib/datasheet-validate";
+import { parseCsv, runStructuralChecks, overallLevel, type Check, type ParsedCsv } from "./lib/datasheet-validate";
 
 interface Args {
   csvPath?: string;
   url?: string;
   keyColumn: string | null;
   baselineRows: number | null;
+  baselineCsvPath?: string;
   json: boolean;
 }
 
@@ -49,6 +54,9 @@ function parseArgs(argv: string[]): Args {
         args.baselineRows = v;
         break;
       }
+      case "--baseline-csv":
+        args.baselineCsvPath = next();
+        break;
       case "--json":
         args.json = true;
         break;
@@ -72,6 +80,17 @@ async function readInput(args: Args): Promise<string> {
   return file.text();
 }
 
+async function readBaselineCsv(path: string | undefined): Promise<ParsedCsv | null> {
+  if (!path) return null;
+  const file = Bun.file(path);
+  if (!(await file.exists())) throw new Error(`--baseline-csv 파일을 찾을 수 없습니다: ${path}`);
+  const csv = parseCsv(await file.text());
+  if (csv.headers.length === 0) {
+    throw new Error(`--baseline-csv 파일에서 헤더 행을 읽지 못했습니다: ${path}`);
+  }
+  return csv;
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const text = await readInput(args);
@@ -81,7 +100,8 @@ async function main() {
     throw new Error("CSV에서 헤더 행을 읽지 못했습니다 — 입력이 비어 있거나 형식이 CSV가 아닙니다.");
   }
 
-  const checks = runStructuralChecks(csv, { keyColumn: args.keyColumn, baselineRows: args.baselineRows });
+  const baselineCsv = await readBaselineCsv(args.baselineCsvPath);
+  const checks = runStructuralChecks(csv, { keyColumn: args.keyColumn, baselineRows: args.baselineRows, baselineCsv });
   const summary = {
     source: args.url ?? args.csvPath!,
     headerCount: csv.headers.length,
