@@ -19,6 +19,38 @@ describe("normalizeInvariantsJson", () => {
   test("throws with a clear message if neither key is present", () => {
     expect(() => normalizeInvariantsJson("arena-reward-table", { somethingElse: 1 })).toThrow(/invariants\/checks/);
   });
+
+  test("recognizes --verify-season backtest shape (no invariants/checks key) and normalizes to a single check", () => {
+    const raw = {
+      anchorBlock: 19260824,
+      targetBlock: 19412023,
+      predicted: "2026-08-22T07:12:27.915Z",
+      marginMinutes: 5.57,
+      actual: "2026-08-22T07:13:56.376Z",
+      residualMinutes: -1.47,
+      withinMargin: true,
+    };
+    const section = normalizeInvariantsJson("arena-season-preview", raw);
+    expect(section.partial).toBe(false);
+    expect(section.checks?.length).toBe(1);
+    expect(section.checks?.[0].level).toBe("OK");
+    expect(section.checks?.[0].ok).toBe(true);
+  });
+
+  test("--verify-season backtest shape outside margin normalizes to WARN", () => {
+    const raw = {
+      anchorBlock: 1,
+      targetBlock: 2,
+      predicted: "2026-01-01T00:00:00.000Z",
+      marginMinutes: 1,
+      actual: "2026-01-01T01:00:00.000Z",
+      residualMinutes: -60,
+      withinMargin: false,
+    };
+    const section = normalizeInvariantsJson("arena-season-preview", raw);
+    expect(section.checks?.[0].level).toBe("WARN");
+    expect(section.checks?.[0].ok).toBe(false);
+  });
 });
 
 describe("normalizeSettlementJson", () => {

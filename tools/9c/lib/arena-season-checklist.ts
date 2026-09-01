@@ -52,15 +52,72 @@ function isCheckArray(value: unknown): value is NormalizedCheck[] {
   );
 }
 
+
+/** arena-season-preview.ts --verify-season produces a completely different shape (a single
+ *  BacktestResult: anchorBlock/targetBlock/predicted/actual/residualMinutes/withinMargin --
+ *  see tools/9c/lib/arena-block-time.ts) instead of an invariants list, because that mode
+ *  backtests the date estimator against an already-completed season rather than previewing
+ *  an upcoming one. Discovered 2026-08-31 running the checklist against a completed season:
+ *  normalizeInvariantsJson threw "형식이 바뀐 것 같습니다" even though nothing was actually
+ *  broken -- the JSON was just a different, equally valid shape this function did not know
+ *  about yet. Recognized here and folded into a single check so --verify-season output can
+ *  flow into the checklist like the other three skills' output does. */
+interface RawBacktestShape {
+  anchorBlock?: unknown;
+  targetBlock?: unknown;
+  residualMinutes?: unknown;
+  marginMinutes?: unknown;
+  withinMargin?: unknown;
+}
+
+function isBacktestResult(
+  value: unknown,
+): value is { anchorBlock: number; targetBlock: number; residualMinutes: number; marginMinutes: number; withinMargin: boolean } {
+  const v = value as RawBacktestShape;
+  return (
+    !!v &&
+    typeof v === "object" &&
+    typeof v.anchorBlock === "number" &&
+    typeof v.targetBlock === "number" &&
+    typeof v.residualMinutes === "number" &&
+    typeof v.marginMinutes === "number" &&
+    typeof v.withinMargin === "boolean"
+  );
+}
+
+function normalizeBacktestResult(raw: {
+  anchorBlock: number;
+  targetBlock: number;
+  residualMinutes: number;
+  marginMinutes: number;
+  withinMargin: boolean;
+}): NormalizedCheck {
+  const detail =
+    `anchor=${raw.anchorBlock.toLocaleString()} target=${raw.targetBlock.toLocaleString()} ` +
+    `잔차 ${raw.residualMinutes >= 0 ? "+" : ""}${raw.residualMinutes.toFixed(1)}분 (마진 ±${raw.marginMinutes.toFixed(1)}분)`;
+  return {
+    id: "verify-season-backtest",
+    name: "--verify-season 날짜 추정 백테스트 (마진 이내)",
+    ok: raw.withinMargin,
+    level: raw.withinMargin ? "OK" : "WARN",
+    detail,
+  };
+}
+
 /** arena-reward-table.ts / arena-season-preview.ts (`invariants`) and arena-announce.ts
- *  (`checks`) all produce the same Check shape under different keys — this reads either. */
+ *  (`checks`) all produce the same Check shape under different keys -- this reads either.
+ *  arena-season-preview.ts --verify-season instead produces a BacktestResult (see above),
+ *  which is normalized into a single-item check list. */
 export function normalizeInvariantsJson(skill: string, raw: unknown): SkillSection {
   const obj = raw as RawInvariantsShape;
   const list = obj.invariants ?? obj.checks;
-  if (!isCheckArray(list)) {
-    throw new Error(`${skill} JSON에서 invariants/checks 배열을 못 찾았습니다 — 형식이 바뀐 것 같습니다.`);
+  if (isCheckArray(list)) {
+    return { skill, checks: list, partial: false };
   }
-  return { skill, checks: list, partial: false };
+  if (isBacktestResult(raw)) {
+    return { skill, checks: [normalizeBacktestResult(raw)], partial: false };
+  }
+  throw new Error(`${skill} JSON에서 invariants/checks 배열을 못 찾았습니다 -- 형식이 바뀐 것 같습니다.`);
 }
 
 interface RawTxResult {
