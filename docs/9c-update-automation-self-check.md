@@ -1,12 +1,13 @@
-# 정규 업데이트 자동화 — 자체 확인 3건 조사 결과 (2026-08-30/31)
+# 정규 업데이트 자동화 — 자체 확인 조사 결과 (2026-08-30/31, 2026-09-01)
 
 설계 문서("나인 크로니클 업데이트 자동화 설계") §5는 권한 승인 없이 담당자가 직접(또는
-개발 세션이 직접) 답을 낼 수 있는 항목 3건을 "자체 확인"으로 분리해뒀다. 이 문서는 그 3건을
-실제로 조사한 결과다 — 2건은 이 개발 환경의 권한 범위 밖이라 결론을 못 냈고, 1건만 확인
-가능했는데 확인 과정에서 설계 문서에 없던 갭을 하나 발견했다.
+개발 세션이 직접) 답을 낼 수 있는 항목을 "자체 확인"·"조사해서 알아낼 것"으로 분리해뒀다.
+이 문서는 그 항목들을 실제로 조사한 결과다 — 2026-08-30/31에 3건(②③⑨)을 조사했고(2건은
+이 개발 환경의 권한 범위 밖이라 결론을 못 냄), 2026-09-01에 ⑥(깃북 작성 방식)을 추가로
+조사해 공개 데이터만으로 결론을 냈다.
 
 번호는 [권한 요청 문서](9c-update-automation-permission-request.md)와 마찬가지로 **설계
-문서 원문 번호**를 그대로 쓴다(②③⑨ — 초판은 이 문서 안에서만 통하는 ①②③으로 임의로 다시
+문서 원문 번호**를 그대로 쓴다(②③⑥⑨ — 초판은 이 문서 안에서만 통하는 ①②③으로 임의로 다시
 매겨져 있었는데, 권한 요청 문서를 교정하면서 여기도 맞춰 고쳤다).
 
 ## 요약
@@ -15,6 +16,7 @@
 | --- | --- | --- | --- |
 | ② | 노션 페이지가 integration에 Connections로 공유됐는지 | **확인 불가** | 이 환경엔 `NOTION_TOKEN`이 전혀 없음 — Notion 접근 권한을 가진 사람이 직접 |
 | ③ | `Atralupus/` 및 lib9c·LiveAssets·NineChronicles·9c-infra 레포 존재 | **확인함 — 갭 1건 발견** | 이 세션(공개 GitHub API, 자격증명 불필요) |
+| ⑥ | 깃북 릴리즈 노트 작성 방식(에디터 직접 입력 vs Git Sync 저장소) | **확인함 — 에디터 직접 입력, GitHub 토큰 불필요로 판명** | 이 세션(깃북 공개 페이지에 내장된 메타데이터, 자격증명 불필요) |
 | ⑨ | `Atralupus/lib9c`에 `GITHUB_FOCKED_REPO_WRITE_TOKEN`으로 push 가능한지 | **확인 불가** | 이 환경엔 해당 토큰이 없음 — 토큰 있는 환경에서 사람이 직접 |
 
 ## ② 노션 페이지 공유 — 확인 불가
@@ -48,6 +50,46 @@ Connections 메뉴에서 확인해야 한다.
 **`Event.json`은 git에 없고 `Event-test.json`만 있다** — 설계 문서 부록 D의 "Event.json은
 PR 없이 즉시 라이브, LiveAssets git엔 없음(raw 404)" 주장과 정확히 일치한다.
 
+## ⑥ 깃북 작성 방식 — 확인함, Git Sync는 백업용 편도 export
+
+`docs.nine-chronicles.com/introduction/intro/release-notes` 페이지(공개, 인증 불필요)의
+HTML에 GitBook 자체가 내장한 메타데이터가 있다:
+
+```json
+"gitSync": {
+  "installationId": "gitsync_RpkmU",
+  "installationProvider": "github",
+  "installationStatus": "active",
+  "url": "https://github.com/planetarium/nine-chronicles-docs/tree/master",
+  "repoName": "planetarium/nine-chronicles-docs",
+  "operation": {
+    "state": "success",
+    "direction": "export",
+    "startedAt": "2026-08-24T09:54:39.529Z",
+    "endedAt": "2026-08-24T09:54:46.907Z"
+  }
+}
+```
+
+핵심은 `"direction":"export"`다 — 깃북이 GitHub 레포로 **내보내는(export)** 방향이지,
+레포에서 깃북으로 **가져오는(import)** 방향이 아니다. 즉:
+
+- **릴리즈 노트는 깃북 에디터에서 직접 작성된다** — 설계 문서가 "확인 안 됨"으로 남겨뒀던
+  미확인 1("릴리즈 노트를 깃북에 직접 작성한다"는 추측)이 사실로 확인됐다.
+- `planetarium/nine-chronicles-docs`(비공개 레포, API로 404 — 존재 자체는 이 메타데이터로
+  간접 확인되지만 내용은 못 읽음)는 깃북 내용을 **자동으로 백업 export하는 대상일 뿐**,
+  편집 소스가 아니다. 이 방향을 거슬러 GitHub PR로 릴리즈 노트를 반영하려는 접근은 다음
+  export 때 깃북 쪽 내용으로 덮어써질 가능성이 높다 — 시도하면 안 된다.
+- 같은 메타데이터 블록에 `"changeRequests":471`이라는 필드도 있다 — 깃북 자체에 내장된
+  변경 요청(리뷰) 기능이 471건 누적돼 있다는 뜻으로, 검토도 깃북 안에서 이뤄지는 것으로
+  보인다(GitHub PR 리뷰가 아니라).
+
+**결론**: `release-notes` 스킬이 GitHub 토큰을 필요로 한다던 설계 문서의 전제는 틀렸다 —
+최종 산출물은 "사람이 깃북 에디터에 붙여넣을 마크다운 텍스트"면 충분하고, GitHub 접근은
+전혀 필요 없다. `announce-fanout`/`arena-announce`와 같은 "초안만 만들고 반영은 사람이 깃북
+에디터에서" 패턴으로 바로 착수 가능하다 — 이제 남은 유일한 준비물은 실제 과거 릴리즈 노트의
+형식(섹션 구성 등)을 분석해 초안 템플릿을 잡는 것뿐이다.
+
 ## ⑨ lib9c push 토큰 검증 — 확인 불가
 
 `GITHUB_FOCKED_REPO_WRITE_TOKEN`(오타처럼 보이지만 실제로 그대로 굳어진 키 이름 —
@@ -74,6 +116,8 @@ PR 없이 즉시 라이브, LiveAssets git엔 없음(raw 404)" 주장과 정확�
 
 - ③ 갭 해소: `Atralupus`에 `NineChronicles.LiveAssets` fork 생성 (사람, GitHub UI 클릭 1회)
 - ② 노션 확인: Notion 접근 권한을 가진 사람이 Connections 메뉴에서 확인
+- ⑥ 해소됨 — `release-notes` 착수 시 실제 과거 릴리즈 노트 형식을 분석해 초안 템플릿만
+  잡으면 됨(권한/토큰 불필요)
 - ⑨ lib9c push 검증: `GITHUB_FOCKED_REPO_WRITE_TOKEN`을 보유한 사람이 확인
 
 ②⑨는 서로 다른 자격증명(Notion vs GitHub)이라 **한 사람이 한 번에 처리된다는 보장이

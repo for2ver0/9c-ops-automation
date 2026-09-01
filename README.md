@@ -37,13 +37,13 @@
 | [`qa-checklist`](.claude/skills/qa-checklist/SKILL.md) | 시트 CSV 전/후 diff → 추가·삭제·변경 행 QA 체크리스트 | 부분 구현 — "무엇이 바뀌었는지"만. "그래서 무엇을 테스트해야 하는지"(시트별 기능 매핑)는 lib9c 도메인 지식 필요로 미착수 |
 | [`announce-fanout`](.claude/skills/announce-fanout/SKILL.md) | 인게임 공지(EN/KR/JP) → 디스코드 공지 초안 재포장 + 언어별 불일치 검사 | 부분 구현 — 정규 업데이트 공지 변환만. 휴장/이벤트 공지 초안(`Event.json` 기반)은 S3 권한 대기로 미착수 |
 | `spec-to-datasheet` / `datasheet-to-csv` | 밸런스 시트 파이프라인 나머지 2종(1차 필수) | 미착수 — 각각 노션 공유 확인·(lib9c push 확인 + 기존 CSV 익스포트 도구 소유·운영 실태 조사) 필요 |
-| `release-notes` | 최종 릴리즈 노트 → 깃북 게시 | 미착수 — 깃북 작성 방식(에디터 직접 입력 vs Git Sync 저장소) 확인 필요 |
+| [`release-notes`](.claude/skills/release-notes/SKILL.md) | 버전+카테고리별 항목 → 깃북 붙여넣기용 릴리즈 노트 초안 | 부분 구현 — 버전 대사(+10 관행, 중복 게시 방지)·섹션 정리만. ⑥ 확인(깃북 에디터 직접 입력, GitHub 토큰 불필요)으로 착수. 문구는 짓지 않고 사람이 준 것만 정리 — 정확한 마크다운 문법은 원본 저장소(`nine-chronicles-docs`, 비공개) 미확인으로 검증 못 함 |
 
 도구 코드는 `tools/9c/release-guard.ts` + `tools/9c/lib/release-guard.ts`, `tools/9c/datasheet-validate.ts`
 + `tools/9c/lib/datasheet-validate.ts`, `tools/9c/deploy-prep.ts` + `tools/9c/lib/deploy-prep.ts`,
 `tools/9c/qa-checklist.ts` + `tools/9c/lib/qa-checklist.ts`, `tools/9c/announce-fanout.ts` +
-`tools/9c/lib/announce-fanout.ts`. CSV 파서(`tools/9c/lib/csv.ts`)는 datasheet-validate와
-qa-checklist가 공유한다(순환 참조 방지용 분리). release-guard는 실행 즉시 실제 프로덕션
-상태(2026-08-30/31 기준, 인게임 공지판이 깃북보다 2차수 뒤처진 상태)를 FATAL로 잡아낸다 —
-조사 근거는
+`tools/9c/lib/announce-fanout.ts`, `tools/9c/release-notes.ts` + `tools/9c/lib/release-notes.ts`.
+CSV 파서(`tools/9c/lib/csv.ts`)는 datasheet-validate와 qa-checklist가 공유한다(순환 참조
+방지용 분리). release-guard는 실행 즉시 실제 프로덕션 상태(2026-08-30/31 기준, 인게임
+공지판이 깃북보다 2차수 뒤처진 상태)를 FATAL로 잡아낸다 — 조사 근거는
 [`references/release-guard-investigation.md`](.claude/skills/release-guard/references/release-guard-investigation.md).
