@@ -1,0 +1,122 @@
+#!/usr/bin/env bun
+/**
+ * datasheet-validate — CURRENTLY A PARTIAL BUILD. See
+ * .claude/skills/datasheet-validate/SKILL.md and tools/9c/lib/datasheet-validate.ts for what's
+ * in and out of scope. Short version: this checks CSV *structure* (the failure modes that
+ * silently corrupt a `/table-patch` upload), not per-sheet schema/type/reference correctness —
+ * that needs a lib9c schema mapping this pass didn't build.
+ *
+ * Usage:
+ *   # 로컬 CSV 파일 검증
+ *   bun run tools/9c/datasheet-validate.ts --csv ./MaterialItemSheet.csv --key-column Id
+ *
+ *   # 구글 시트 CSV export URL 직접 검증 (공개 시트만 — 인증 없음)
+ *   bun run tools/9c/datasheet-validate.ts --url "https://docs.google.com/spreadsheets/d/<id>/gviz/tq?tqx=out:csv&sheet=<tab>" --key-column Id
+ *
+ *   # 직전 실행의 행 수를 기준값으로 넘겨 급감 검출
+ *   bun run tools/9c/datasheet-validate.ts --csv ./MaterialItemSheet.csv --key-column Id --baseline-rows 421
+ *
+ *   bun run tools/9c/datasheet-validate.ts --csv ./x.csv --json
+ */
+import { parseCsv, runStructuralChecks, overallLevel, type Check } from "./lib/datasheet-validate";
+
+interface Args {
+  csvPath?: string;
+  url?: string;
+  keyColumn: string | null;
+  baselineRows: number | null;
+  json: boolean;
+}
+
+function parseArgs(argv: string[]): Args {
+  const args: Args = { keyColumn: null, baselineRows: null, json: false };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    const next = () => argv[++i];
+    switch (a) {
+      case "--csv":
+        args.csvPath = next();
+        break;
+      case "--url":
+        args.url = next();
+        break;
+      case "--key-column":
+        args.keyColumn = next();
+        break;
+      case "--baseline-rows": {
+        const v = Number(next());
+        if (!Number.isFinite(v) || v < 0) throw new Error("--baseline-rows는 0 이상의 숫자여야 합니다.");
+        args.baselineRows = v;
+        break;
+      }
+      case "--json":
+        args.json = true;
+        break;
+      default:
+        throw new Error(`알 수 없는 옵션: ${a}`);
+    }
+  }
+  if (!args.csvPath && !args.url) throw new Error("--csv <경로> 또는 --url <CSV export URL> 중 하나가 필요합니다.");
+  if (args.csvPath && args.url) throw new Error("--csv와 --url을 동시에 줄 수 없습니다.");
+  return args;
+}
+
+async function readInput(args: Args): Promise<string> {
+  if (args.url) {
+    const res = await fetch(args.url);
+    if (!res.ok) throw new Error(`GET ${args.url} -> HTTP ${res.status}`);
+    return res.text();
+  }
+  const file = Bun.file(args.csvPath!);
+  if (!(await file.exists())) throw new Error(`파일을 찾을 수 없습니다: ${args.csvPath}`);
+  return file.text();
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const text = await readInput(args);
+  const csv = parseCsv(text);
+
+  if (csv.headers.length === 0) {
+    throw new Error("CSV에서 헤더 행을 읽지 못했습니다 — 입력이 비어 있거나 형식이 CSV가 아닙니다.");
+  }
+
+  const checks = runStructuralChecks(csv, { keyColumn: args.keyColumn, baselineRows: args.baselineRows });
+  const summary = {
+    source: args.url ?? args.csvPath!,
+    headerCount: csv.headers.length,
+    rowCount: csv.rows.length,
+    level: overallLevel(checks),
+    checks,
+  };
+
+  if (args.json) {
+    console.log(JSON.stringify(summary, null, 2));
+  } else {
+    printHumanReadable(summary);
+  }
+
+  process.exit(summary.level === "FATAL" ? 1 : 0);
+}
+
+function printHumanReadable(summary: {
+  source: string;
+  headerCount: number;
+  rowCount: number;
+  level: string;
+  checks: Check[];
+}) {
+  console.log(`전체 상태: ${summary.level}`);
+  console.log(`소스: ${summary.source}`);
+  console.log(`헤더 ${summary.headerCount}칸 / 데이터 ${summary.rowCount}행`);
+  console.log("");
+  for (const c of summary.checks) {
+    const mark = c.ok ? "OK   " : c.level === "FATAL" ? "FATAL" : "WARN ";
+    console.log(`[${mark}] ${c.name} — ${c.detail}`);
+  }
+}
+
+main().catch((err) => {
+  console.error(err instanceof Error ? err.message : err);
+  process.exit(1);
+});

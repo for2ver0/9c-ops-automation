@@ -32,10 +32,11 @@
 | 스킬 | 역할 | 상태 |
 | --- | --- | --- |
 | [`release-guard`](.claude/skills/release-guard/SKILL.md) | 깃북 릴리즈 노트 vs 메인넷 APV vs 인게임 공지판 일관성 대조 | 부분 구현 — 일관성·헤드 대조만, `Event.json` 스냅샷은 S3 권한 대기 |
-| `datasheet-validate` | 밸런스 시트 검증(1차 필수) | 미착수 — 권한 블로커 없음(시트가 공개로 확인됨), 착수만 하면 됨 |
+| [`datasheet-validate`](.claude/skills/datasheet-validate/SKILL.md) | 밸런스 시트 CSV 구조적 검증(1차 필수) | 부분 구현 — 중복 헤더·행별 컬럼 수·키 컬럼 공백·행 수 급감(v200450 실패 모드 3종 회귀 포함). 시트 간 참조 ID·회차 diff·타입 검증은 lib9c 스키마 매핑 선행 필요로 미착수 |
 | `announce-fanout` | 디스코드 공지 초안 생성 | 미착수 — 권한 블로커 없음(게시는 원래도 항상 사람이 수동으로 함), 초안 생성 스킬로 착수만 하면 됨 |
 | `spec-to-datasheet` / `datasheet-to-csv` | 밸런스 시트 파이프라인 나머지 2종(1차 필수) | 미착수 — 각각 노션 공유 확인·lib9c push 확인 필요 |
 
-도구 코드는 `tools/9c/release-guard.ts` + `tools/9c/lib/release-guard.ts`. 실행 즉시 실제
-프로덕션 상태(2026-08-30/31 기준, 인게임 공지판이 깃북보다 2차수 뒤처진 상태)를 FATAL로
-잡아낸다 — 조사 근거는 [`references/release-guard-investigation.md`](.claude/skills/release-guard/references/release-guard-investigation.md).
+도구 코드는 `tools/9c/release-guard.ts` + `tools/9c/lib/release-guard.ts`, `tools/9c/datasheet-validate.ts`
++ `tools/9c/lib/datasheet-validate.ts`. release-guard는 실행 즉시 실제 프로덕션 상태(2026-08-30/31
+기준, 인게임 공지판이 깃북보다 2차수 뒤처진 상태)를 FATAL로 잡아낸다 — 조사 근거는
+[`references/release-guard-investigation.md`](.claude/skills/release-guard/references/release-guard-investigation.md).
