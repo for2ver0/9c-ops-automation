@@ -18,12 +18,16 @@
  *
  * Scope note on ticket numbers: this module never invents them. `ticketInfo` is an
  * explicit, caller-supplied input (see arena-reward-table.ts's --ticket-total/
- * --ticket-session) — omit it and the Ticket Information lines simply don't render
- * (the "Ticket Information" heading still does, matching the real table's layout when
- * an operator hasn't confirmed the numbers yet). Wording differs by season type
- * (SEASON has a per-session refresh bullet, CHAMPIONSHIP does not per the operator,
- * 2026-08-31) — that branching lives in the CLI, not here, same reasoning as the
- * pre-existing scope note about season-type wording belonging to arena-announce.
+ * --ticket-session for SEASON, --required-medal-count/--round-count/--round-interval for
+ * CHAMPIONSHIP) — omit it and the Ticket Information lines simply don't render (the
+ * "Ticket Information" heading still does, matching the real table's layout when an
+ * operator hasn't confirmed the numbers yet). Wording differs by season type — that
+ * branching lives in the CLI, not here, same reasoning as the pre-existing scope note
+ * about season-type wording belonging to arena-announce. **CHAMPIONSHIP's "Ticket
+ * Information" section is not actually about tickets at all** (confirmed against a real
+ * Championship screenshot the operator shared, 2026-09-01) — it shows medal eligibility
+ * + round schedule instead. The section heading stays "Ticket Information" regardless
+ * (matches the real layout), only the content differs.
  * This section is deliberately independent of `season`: it renders (heading, and lines
  * when supplied) even when `season` is null, so an operator-confirmed ticketInfo doesn't
  * silently vanish just because live season lookup failed (e.g. a mid-registration season
@@ -193,16 +197,30 @@ export function buildSeasonTicketLines(totalTickets: number, extraPerSession: nu
   ];
 }
 
-/** CHAMPIONSHIP-type ticket wording (single bullet, no per-session refresh concept —
- *  per operator, 2026-08-31; wording itself unconfirmed beyond "no session bullet", so
- *  callers should treat this as provisional until cross-checked against a real
- *  Championship-type table image). */
-export function buildChampionshipTicketLines(totalTickets: number): BulletSegment[][] {
+/** CHAMPIONSHIP-type "Ticket Information" wording — confirmed against a real Championship
+ *  reward table screenshot the operator shared, 2026-09-01. This section is NOT about
+ *  ticket purchase limits for CHAMPIONSHIP (unlike SEASON) — it shows medal eligibility
+ *  and round schedule instead. The earlier guess (a "you can buy up to N tickets" bullet,
+ *  taken from the SEASON wording on the unverified assumption both types meant the same
+ *  thing) was wrong; this replaces it with the real wording. Note the medal bullet says
+ *  "during the Season" verbatim in the real screenshot even for a CHAMPIONSHIP table —
+ *  that's the actual product text, not a typo to "fix" here. */
+export function buildChampionshipTicketLines(
+  requiredMedalCount: number,
+  roundCount: number,
+  roundIntervalBlocks: number,
+): BulletSegment[][] {
   return [
     [
-      { text: "You can buy up to " },
-      { text: String(totalTickets), color: "amber" },
-      { text: " tickets during the entire Championship" },
+      { text: "You need to collect " },
+      { text: String(requiredMedalCount), color: "amber" },
+      { text: " Medals during the Season to be eligible" },
+    ],
+    [
+      { text: String(roundCount), color: "amber" },
+      { text: " rounds per Championship, each round lasts about 24 hours (" },
+      { text: roundIntervalBlocks.toLocaleString(), color: "amber" },
+      { text: " block interval)" },
     ],
   ];
 }

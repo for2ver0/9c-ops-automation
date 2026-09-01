@@ -7,7 +7,33 @@
 import { describe, expect, test } from "bun:test";
 import golden from "../fixtures/arena-reward-table.golden.json";
 import { convertTierGroupsToRewardTiers, generateTierGroups, type RewardConfig } from "./arena-reward-calc";
-import { formatRankLabel, renderRewardTableSvg } from "./arena-reward-png";
+import { buildChampionshipTicketLines, buildSeasonTicketLines, formatRankLabel, renderRewardTableSvg } from "./arena-reward-png";
+
+function flatten(lines: ReturnType<typeof buildSeasonTicketLines>): string {
+  return lines.map((line) => line.map((seg) => seg.text).join("")).join(" / ");
+}
+
+describe("ticket info wording — confirmed against real screenshots (2026-09-01)", () => {
+  test("SEASON: matches the real Odin screenshot verbatim (24 total / 4 per session)", () => {
+    const text = flatten(buildSeasonTicketLines(24, 4));
+    expect(text).toBe(
+      "You can buy up to 24 tickets during the entire Season / " +
+        "You can buy up to 4 extra tickets during each session (each refresh, or about 24 hours).",
+    );
+  });
+
+  test("CHAMPIONSHIP: matches the real Heimdall CS9 screenshot verbatim (0 medals, 14 rounds, 10800 blocks)", () => {
+    // This section is NOT about ticket purchases for CHAMPIONSHIP — it's medal
+    // eligibility + round schedule. An earlier version of this function produced a
+    // "you can buy up to N tickets" bullet here, which was never real (see the
+    // function's doc comment in arena-reward-png.ts).
+    const text = flatten(buildChampionshipTicketLines(0, 14, 10800));
+    expect(text).toBe(
+      "You need to collect 0 Medals during the Season to be eligible / " +
+        "14 rounds per Championship, each round lasts about 24 hours (10,800 block interval)",
+    );
+  });
+});
 
 for (const fixture of golden.fixtures) {
   test(`${fixture.label}: SVG contains the title and every group's cell values`, () => {

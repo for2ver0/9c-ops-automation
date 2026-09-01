@@ -25,14 +25,19 @@ PATH에 추가해 쓴다.
 여부, 기본 배분 비율 같은 기술적 선택 — 은 스스로 판단해서 진행하고 결과만 보고한다. 매 단계마다
 새로 되묻지 말 것.
 
-여기에 하나 더 추가: 상금 표 PNG에 **티켓 정보**(`--ticket-total`, SEASON이면 `--ticket-session`도)도
-사람이 확인해야 하는 값이다. 라이브 시즌 데이터에 `battleTicketPolicy`/`refreshTicketPolicy`의
-`defaultTicketsPerRound`·`maxPurchasableTicketsPerRound` 같은 원본 숫자가 있어도, 그걸 그대로
-옮기거나 라운드 수를 곱해 계산해서 채우지 않는다 — `arena-reward-png.ts`의 스코프 노트가 명시하듯
-이 값은 "담당자가 확인한 총 티켓 수" 문구이지 원본 필드의 단순 변환이 아니다(2026-08-31, 실제로
-이 옵션의 존재 자체를 모르고 빈 채로 PNG를 만들었다가 담당자에게 지적받은 사례 있음). 안 주면
-"Ticket Information" 제목만 있고 내용은 비어 있는 게 정상 — 그걸 기본값으로 받아들이되, PNG를
-보여줄 때 "티켓 정보는 비워뒀다, 채우려면 총 티켓 수/세션당 추가 수량을 알려달라"고 먼저 말한다.
+여기에 하나 더 추가: 상금 표 PNG의 **"Ticket Information" 섹션**도 사람이 확인해야 하는 값이다.
+**SEASON**은 정말 티켓 얘기다(`--ticket-total`/`--ticket-session`, "총 몇 장/세션당 추가 몇 장"). 하지만
+**CHAMPIONSHIP은 이 섹션 제목만 같을 뿐 내용이 티켓과 무관하다** — 담당자가 공유한 실제 스크린샷으로
+2026-09-01에 확인됨: 메달 요건("N Medals 필요")과 라운드 일정("N rounds, 라운드당 약 24시간, 블록
+간격")을 보여준다. 그래서 CHAMPIONSHIP엔 `--ticket-total` 대신 `--required-medal-count`/
+`--round-count`/`--round-interval` 세 값을 준다. 두 타입 다 라이브 시즌 데이터에 있는 원본 숫자
+(`battleTicketPolicy`/`refreshTicketPolicy`, `requiredMedalCount`, round 관련 필드 등)를 그대로
+옮기거나 계산해서 채우지 않는다 — `arena-reward-png.ts`의 스코프 노트가 명시하듯 이 값들은 "담당자가
+확인한" 숫자이지 원본 필드의 단순 변환이 아니다(2026-08-31, 실제로 이 옵션의 존재 자체를 모르고 빈
+채로 PNG를 만들었다가 담당자에게 지적받은 사례 있음). 필요한 값을 안 주면 "Ticket Information" 제목만
+있고 내용은 비어 있는 게 정상 — 그걸 기본값으로 받아들이되, PNG를 보여줄 때 무엇을 비워뒀고 채우려면
+어떤 값이 필요한지(SEASON: 총 티켓 수/세션당 추가 수량, CHAMPIONSHIP: 필요 메달 수/라운드 수/라운드
+블록 간격) 먼저 말한다.
 
 ## 실제 결과물을 보여줄 것
 

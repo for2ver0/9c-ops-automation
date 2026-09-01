@@ -67,6 +67,9 @@ interface Args {
   pngPath?: string;
   ticketTotal?: number;
   ticketSession?: number;
+  requiredMedalCount?: number;
+  roundCount?: number;
+  roundInterval?: number;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -128,6 +131,15 @@ function parseArgs(argv: string[]): Args {
         break;
       case "--ticket-session":
         args.ticketSession = Number(next());
+        break;
+      case "--required-medal-count":
+        args.requiredMedalCount = Number(next());
+        break;
+      case "--round-count":
+        args.roundCount = Number(next());
+        break;
+      case "--round-interval":
+        args.roundInterval = Number(next());
         break;
       default:
         throw new Error(`알 수 없는 옵션: ${a}`);
@@ -343,15 +355,26 @@ async function main() {
       }
     }
 
-    // Ticket numbers are never invented here — only rendered when the operator passed
-    // them explicitly via --ticket-total/--ticket-session, same "no silent defaults"
-    // rule as the reward config itself. Wording branches on season type (SEASON gets a
-    // per-session refresh bullet, CHAMPIONSHIP doesn't) per the operator, 2026-08-31.
+    // These "Ticket Information" numbers are never invented here — only rendered when the
+    // operator passed them explicitly, same "no silent defaults" rule as the reward config
+    // itself. Both the wording AND the required inputs differ by season type: SEASON needs
+    // --ticket-total/--ticket-session (ticket purchase limits). CHAMPIONSHIP needs
+    // --required-medal-count/--round-count/--round-interval instead — confirmed against a
+    // real screenshot (2026-09-01) that this section isn't about ticket purchases at all for
+    // CHAMPIONSHIP, it's medal eligibility + round schedule.
     let ticketInfo: Parameters<typeof renderRewardTablePng>[0]["ticketInfo"] = null;
-    if (args.ticketTotal !== undefined) {
-      if (args.seasonType === "CHAMPIONSHIP") {
-        ticketInfo = { lines: buildChampionshipTicketLines(args.ticketTotal) };
-      } else if (args.ticketSession !== undefined) {
+    if (args.seasonType === "CHAMPIONSHIP") {
+      if (args.requiredMedalCount !== undefined && args.roundCount !== undefined && args.roundInterval !== undefined) {
+        ticketInfo = {
+          lines: buildChampionshipTicketLines(args.requiredMedalCount, args.roundCount, args.roundInterval),
+        };
+      } else if (args.requiredMedalCount !== undefined || args.roundCount !== undefined || args.roundInterval !== undefined) {
+        console.error(
+          "--required-medal-count/--round-count/--round-interval 중 일부만 있습니다 (CHAMPIONSHIP 타입은 세 값 다 필요) — 티켓 정보 없이 진행합니다.",
+        );
+      }
+    } else if (args.ticketTotal !== undefined) {
+      if (args.ticketSession !== undefined) {
         ticketInfo = { lines: buildSeasonTicketLines(args.ticketTotal, args.ticketSession) };
       } else {
         console.error("--ticket-total은 있는데 --ticket-session이 없습니다 (SEASON 타입은 두 값 다 필요) — 티켓 정보 없이 진행합니다.");
