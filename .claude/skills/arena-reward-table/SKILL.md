@@ -1,6 +1,6 @@
 ---
 name: arena-reward-table
-description: Nine Chronicles 아레나 시즌 상금 표를 계산하고 검증할 때 사용. RankingPool·배분 비율·보너스 배수 3종(스테이킹 lv2/lv3, 용기패스)을 받아 10개 랭크 구간별 지급액 표를 백오피스(ArenaRewardService)와 동일한 로직으로 재현하고, 백오피스가 검증하지 않는 불변식(인원 합 500, 비율 합 100%, 실지급 ≤ 총 풀)과 위험 항목(테이블 밖 랭크 스킵, 용기패스 프리미엄 100명 초과, 스테이킹 매칭 실패)을 검출한다. "아레나 상금 표 만들어줘", "이번 시즌 상금 계산해줘", "상금 표 검증해줘" 같은 요청에 사용. 동점으로 인한 구간 경계 이동은 골든 픽스처에 미착수(WARN) 항목으로만 기록돼 있고, 용기패스(avatarAddress) 매칭 실패 탐지는 아직 구현되지 않았다(§4 참고). 시즌 등록(ManageSeasons)이나 정산 실행(NCG 지급 서명·전송)은 이 스킬의 범위 밖이다.
+description: Nine Chronicles 아레나 시즌 상금 표를 계산하고 검증할 때 사용. RankingPool·배분 비율·보너스 배수 3종(스테이킹 lv2/lv3, 용기패스)을 받아 10개 랭크 구간별 지급액 표를 백오피스(ArenaRewardService)와 동일한 로직으로 재현하고, 백오피스가 검증하지 않는 불변식(인원 합 500, 비율 합 100%, 실지급 ≤ 총 풀)과 위험 항목(테이블 밖 랭크 스킵, 용기패스 프리미엄 100명 이상 도달, 스테이킹 매칭 실패)을 검출한다. "아레나 상금 표 만들어줘", "이번 시즌 상금 계산해줘", "상금 표 검증해줘" 같은 요청에 사용. 동점으로 인한 구간 경계 이동은 골든 픽스처에 미착수(WARN) 항목으로만 기록돼 있고, 용기패스(avatarAddress) 매칭 실패 탐지는 아직 구현되지 않았다(§4 참고). 시즌 등록(ManageSeasons)이나 정산 실행(NCG 지급 서명·전송)은 이 스킬의 범위 밖이다.
 ---
 
 # 아레나 상금 표 계산
@@ -28,7 +28,7 @@ description: Nine Chronicles 아레나 시즌 상금 표를 계산하고 검증�
 
 의존성: `@resvg/resvg-js`(PNG 래스터화, 저장소 루트 `package.json`) — `bun install` 필요.
 
-실행: `bun test tools/9c/lib/` (205 pass, 12개 파일 — 다른 5개 스킬 테스트도 같은 디렉터리에 있어
+실행: `bun test tools/9c/lib/` (214 pass, 12개 파일 — 다른 5개 스킬 테스트도 같은 디렉터리에 있어
 범위가 넓어짐) / `bun run tools/9c/fixtures/verify-arena-reward-table.ts [--live]`.
 
 ---

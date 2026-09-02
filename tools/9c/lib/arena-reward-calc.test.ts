@@ -11,10 +11,13 @@
 import { describe, expect, test } from "bun:test";
 import golden from "../fixtures/arena-reward-table.golden.json";
 import {
+  calculateRewards,
   checkInvariants,
   convertTierGroupsToRewardTiers,
   generateTierGroups,
   type RewardConfig,
+  type RewardTier,
+  type RankingEntry,
 } from "./arena-reward-calc";
 
 const PAID_KEYS = [
@@ -201,5 +204,55 @@ describe("rounding-boundary-risk WARN (C# decimal vs JS double)", () => {
     const risk = invariants.find((i) => i.id === "rounding-boundary-risk")!;
     expect(risk.ok).toBe(true);
     expect(risk.level).toBe("OK");
+  });
+});
+
+describe("calculateRewards address matching", () => {
+  const tiers: RewardTier[] = [
+    {
+      rankRangeMin: 1,
+      rankRangeMax: 1,
+      basicReward: 100,
+      staking2Reward: 10,
+      staking3Reward: 20,
+      couragePassReward: 5,
+      couragePassAndStaking2Reward: 15,
+      couragePassAndStaking3Reward: 25,
+      boundaryRiskFields: [],
+    },
+  ];
+  const ranking: RankingEntry = {
+    avatarAddress: "0xAbCdEf0000000000000000000000000000000f",
+    agentAddress: "0xAbCdEf0000000000000000000000000000000a",
+    nameWithHash: "Player 123",
+    rank: 1,
+    score: 1000,
+    totalWin: 1,
+    totalLose: 0,
+    level: 1,
+  };
+
+  test("staking match is case-insensitive (backend keys it by a Libplanet Address struct)", () => {
+    const { results } = calculateRewards(
+      tiers,
+      [ranking],
+      [{ agentAddress: ranking.agentAddress.toUpperCase(), deposit: 100_000 }],
+      [],
+    );
+    expect(results[0].stakingLevel).not.toBe(0);
+  });
+
+  test("courage pass match is case-SENSITIVE (backend keys it by a plain C# string), unlike staking", () => {
+    // Regression: an earlier version lowercased both sides here, which disagreed with the live
+    // backend (ArenaRewardService.cs couragePassByAvatar.ToDictionary(c => c.AvatarAddress, ...) —
+    // no case normalization) whenever a leaderboard API and the courage-pass source used
+    // differently-cased hex for the same avatar.
+    const { results } = calculateRewards(tiers, [ranking], [], [{ avatarAddress: ranking.avatarAddress.toUpperCase(), agentAddress: ranking.agentAddress }]);
+    expect(results[0].hasCouragePass).toBe(false);
+  });
+
+  test("courage pass matches when casing is identical", () => {
+    const { results } = calculateRewards(tiers, [ranking], [], [{ avatarAddress: ranking.avatarAddress, agentAddress: ranking.agentAddress }]);
+    expect(results[0].hasCouragePass).toBe(true);
   });
 });

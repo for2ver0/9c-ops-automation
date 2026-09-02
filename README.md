@@ -18,7 +18,9 @@
 | 5 | [`arena-season-checklist`](.claude/skills/arena-season-checklist/SKILL.md) | 1-4 산출물 집계 | 완료 |
 
 도구 코드는 `tools/9c/`. 모든 단계의 최종 확인·승인·실행은 사람이 한다 — 자동화는 계산·대사·
-검증·초안 생성까지만 한다.
+검증·초안 생성까지만 한다. (단, 시즌 등록·정산 실행 범위를 에이전트로 넓히는 방안이
+`docs/arena-settlement-automation-design.md`에서 담당자 승인 하에 논의 중이다 — 아직 미구현이며,
+구현 전까지는 위 원칙이 그대로 적용된다.)
 
 **각 스킬 SKILL.md의 예시 명령어는 `bun run "$(git rev-parse --show-toplevel)/tools/9c/...ts"`
 형태로, 저장소 안 어느 디렉터리에서 실행하든(클론 직후 Claude를 어디서 열었든) 항상 올바른

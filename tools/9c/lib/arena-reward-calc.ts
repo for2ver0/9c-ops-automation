@@ -410,9 +410,12 @@ export function calculateRewards(
   for (const s of stakings) {
     if (s.agentAddress) stakingByAgent.set(s.agentAddress.toLowerCase(), s);
   }
+  // Backend keys this by AvatarAddress as a plain C# string (Dictionary<string, CouragePassEntry>),
+  // not a Libplanet Address struct — unlike agentAddress above, this comparison is case-sensitive
+  // there, so it must stay case-sensitive here too (ArenaRewardService.cs:394,415).
   const couragePassByAvatar = new Set<string>();
   for (const c of couragePasses) {
-    couragePassByAvatar.add(c.avatarAddress.toLowerCase());
+    couragePassByAvatar.add(c.avatarAddress);
   }
 
   const results: RewardResult[] = [];
@@ -432,7 +435,7 @@ export function calculateRewards(
 
     const staking = stakingByAgent.get(ranking.agentAddress.toLowerCase());
     const stakingLevel = getStakingLevel(staking ? staking.deposit : 0);
-    const hasCouragePass = couragePassByAvatar.has(ranking.avatarAddress.toLowerCase());
+    const hasCouragePass = couragePassByAvatar.has(ranking.avatarAddress);
     const stakingBonus = getStakingBonus(tier, stakingLevel, hasCouragePass);
 
     results.push({

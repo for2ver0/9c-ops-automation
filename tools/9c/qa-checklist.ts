@@ -62,9 +62,13 @@ async function main() {
     throw new Error(`다음 값을 명시적으로 입력해야 합니다: ${missing.join(", ")}`);
   }
 
-  const [beforeText, afterText] = await Promise.all([Bun.file(args.before!).text(), Bun.file(args.after!).text()]);
-  const before = parseCsv(beforeText);
-  const after = parseCsv(afterText);
+  const beforeFile = Bun.file(args.before!);
+  if (!(await beforeFile.exists())) throw new Error(`--before 파일을 찾을 수 없습니다: ${args.before}`);
+  const afterFile = Bun.file(args.after!);
+  if (!(await afterFile.exists())) throw new Error(`--after 파일을 찾을 수 없습니다: ${args.after}`);
+
+  const before = parseCsv(await beforeFile.text());
+  const after = parseCsv(await afterFile.text());
 
   const diff = diffSheet(before, after, args.keyColumn!);
   const checklist = buildQaChecklist(args.sheetName!, diff);

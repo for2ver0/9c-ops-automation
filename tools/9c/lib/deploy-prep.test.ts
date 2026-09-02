@@ -119,6 +119,19 @@ describe("buildDeployChecklist", () => {
     expect(items.some((i) => i.includes("앞선 버전을 배포 중"))).toBe(true);
   });
 
+  test("does not claim sync when a manifest APV failed to fetch (apv: null)", () => {
+    const items = buildDeployChecklist({
+      gitbookApv: 200470,
+      odin: apv("odin", null),
+      heimdall: apv("heimdall", 200470),
+      clientBuild: null,
+      rollbackTarget: null,
+      manageApvInputs: [],
+    });
+    expect(items.some((i) => i.includes("동기화돼 있습니다"))).toBe(false);
+    expect(items.some((i) => i.includes("읽지 못했습니다"))).toBe(true);
+  });
+
   test("flags missing rollback target as a to-do, not silently skipped", () => {
     const items = buildDeployChecklist({
       gitbookApv: 200470,

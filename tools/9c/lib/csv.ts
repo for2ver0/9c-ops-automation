@@ -91,11 +91,17 @@ function tokenizeCsvRows(text: string): string[][] {
     endRow();
   }
   // 파일 끝의 완전히 빈 줄(트레일링 개행)로 생긴 [""] 한 칸짜리 행은 실질적으로 빈 줄이므로 버린다.
-  // 마지막 행에만 적용한다 — 파일 중간의 빈 줄까지 지우면 그 뒤 모든 행의 원본 줄 번호가
-  // 어긋난다(Backoffice CsvValidationService의 결함, 설계 문서 부록 A-1과 동일한 실패 모드).
-  const last = rows[rows.length - 1];
-  if (last !== undefined && last.length === 1 && last[0] === "") {
-    rows.pop();
+  // 끝에서부터 연속된 빈 줄을 전부 제거한다 — 트레일링 빈 줄이 2개 이상이면 하나만 지울 경우
+  // 유령 행이 남아 checkRowColumnCounts 등에서 오탐 FATAL을 낸다. 파일 중간의 빈 줄은 건드리지
+  // 않는다 — 그걸 지우면 그 뒤 모든 행의 원본 줄 번호가 어긋난다(Backoffice CsvValidationService의
+  // 결함, 설계 문서 부록 A-1과 동일한 실패 모드).
+  while (rows.length > 0) {
+    const last = rows[rows.length - 1];
+    if (last !== undefined && last.length === 1 && last[0] === "") {
+      rows.pop();
+    } else {
+      break;
+    }
   }
   return rows;
 }

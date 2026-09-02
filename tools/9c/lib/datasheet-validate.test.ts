@@ -62,6 +62,13 @@ describe("parseCsv", () => {
     expect(csv.rows).toEqual([["1", "A"], ["2", "B"]]);
   });
 
+  test("drops all trailing blank lines, not just the last one", () => {
+    // Regression: a single unconditional pop() left a phantom [""] row behind whenever the
+    // file ended with 2+ blank lines, which then false-flagged as a column-count mismatch.
+    const csv = parseCsv("Id,Name\n1,A\n2,B\n\n\n");
+    expect(csv.rows).toEqual([["1", "A"], ["2", "B"]]);
+  });
+
   test("returns empty headers/rows for empty input", () => {
     expect(parseCsv("")).toEqual({ headers: [], rows: [] });
   });
@@ -100,6 +107,18 @@ describe("checkRowColumnCounts", () => {
     expect(result.level).toBe("FATAL");
     expect(result.detail).toContain("3행");
     expect(result.detail).toContain("4행");
+  });
+
+  test("known limitation: reported line drifts below the physical file line after an embedded-newline row", () => {
+    // parseCsv preserves embedded newlines inside quoted fields (correctly), but this check
+    // numbers rows by logical index, not physical file line. A quoted multi-line field before
+    // the mismatch shifts every subsequent report's line number down from the real one.
+    const csv = parseCsv('Id,Note,Value\n1,"multi\nline note",10\n2,20\n');
+    // "2,20" is physically the 4th file line (header + 2 physical lines for row 1 + this line),
+    // but is logical row index 1 -> reported as line 3.
+    const result = checkRowColumnCounts(csv.headers, csv.rows);
+    expect(result.level).toBe("FATAL");
+    expect(result.detail).toContain("3행");
   });
 });
 

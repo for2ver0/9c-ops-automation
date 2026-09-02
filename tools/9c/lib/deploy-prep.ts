@@ -128,12 +128,19 @@ export function buildDeployChecklist(p: DeployChecklistParams): string[] {
   const items: string[] = [];
 
   if (p.manageApvInputs.length === 0) {
+    const unreadable = [p.odin, p.heimdall].filter((m) => m.apv === null);
     const ahead = [p.odin, p.heimdall].filter((m) => m.apv !== null && m.apv > p.gitbookApv);
+    if (unreadable.length > 0) {
+      items.push(
+        `[ ] ${unreadable.map((m) => m.network).join(", ")} 매니페스트 APV를 읽지 못했습니다 — 깃북(v${p.gitbookApv})과 동기화 여부를 확인할 수 없으니 직접 확인이 필요합니다.`,
+      );
+    }
     if (ahead.length > 0) {
       items.push(
         `[ ] ${ahead.map((m) => m.network).join(", ")} 매니페스트가 이미 깃북(v${p.gitbookApv})보다 앞선 버전을 배포 중입니다 — Manage Apv 실행 불필요, 대신 깃북 릴리즈 노트를 갱신해야 합니다(정상적인 배포 후 지연이면 release-guard의 24시간 유예 판정 참고).`,
       );
-    } else {
+    }
+    if (unreadable.length === 0 && ahead.length === 0) {
       items.push(`[x] odin/heimdall 매니페스트 APV가 이미 깃북(v${p.gitbookApv})과 동기화돼 있습니다 — Manage Apv 실행 불필요.`);
     }
   } else {

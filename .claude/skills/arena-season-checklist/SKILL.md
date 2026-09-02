@@ -38,6 +38,7 @@ odin,heimdall`로 `/cached-block-info`(시즌 캐시) 읽기 점검을 곁들일
 | `arena-season-preview` | `invariants` | |
 | `arena-announce` | `checks` | 키 이름만 다르고 항목 모양(`id`/`name`/`ok`/`level`/`detail`)은 같음 |
 | `arena-settlement-check` | (배열 자체가 tx 결과) | `invariants`/`checks` 개념이 아예 없음 — SUCCESS→OK, FAILURE/INVALID→FATAL, STAGING/INCLUDED→WARN, 못 찾음→WARN으로 이 스킬이 매핑. **`partial: true`로 표시** — 스펙이 원래 요구한 "유저별 실지급 대사"는 여전히 없다는 뜻(스킬 4 SKILL.md 참고) |
+| `arena-season-preview --verify-season` | (단일 `BacktestResult`: `anchorBlock`/`targetBlock`/`residualMinutes`/`marginMinutes`/`withinMargin`) | 완료된 시즌을 대상으로 날짜 추정기를 백테스트하는 모드라 `invariants` 목록이 아니라 이 별도 모양을 낸다. 이 스킬이 단일 항목 체크(`verify-season-backtest`, 마진 이내면 OK/아니면 WARN)로 정규화해 나머지 4개와 같은 화면에 모은다 |
 
 ## 2. 실행
 

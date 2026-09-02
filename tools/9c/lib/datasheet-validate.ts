@@ -69,7 +69,12 @@ export function checkDuplicateHeaders(headers: readonly string[]): Check {
 }
 
 /** 행별 컬럼 수가 헤더 수와 일치하는지. 파서가 따옴표 안 쉼표를 이미 값으로 흡수했으므로,
- *  여기서 불일치가 나오면 실제 데이터 결함(열 누락/추가)이지 파싱 오탐이 아니다. */
+ *  여기서 불일치가 나오면 실제 데이터 결함(열 누락/추가)이지 파싱 오탐이 아니다.
+ *
+ *  알려진 한계: `line`은 논리 행 인덱스로 계산한다(1개 논리 행 = 물리 파일 1줄이라는 가정).
+ *  어떤 행이든 따옴표 안에 개행을 포함하면 그 이후 모든 행은 실제 물리 줄 번호보다 작게
+ *  보고된다 — 파서가 물리 줄 번호를 별도로 추적하지 않기 때문. 진단이 완전히 틀리는 건
+ *  아니고(그 행 근처를 찾는 데는 쓸 수 있음) 정확한 줄 번호가 필요하면 직접 세어야 한다. */
 export function checkRowColumnCounts(headers: readonly string[], rows: readonly string[][]): Check {
   const id = "row-column-counts";
   const name = "행별 컬럼 수 일치";
@@ -99,7 +104,10 @@ export function checkRowColumnCounts(headers: readonly string[], rows: readonly 
 /** 지정된 키 컬럼(보통 Id)이 비어 있는 행 검출. Backoffice에 그대로 올리면 key 컬럼이 빈
  *  값으로 `ISheet.Set`에 들어가 `ArgumentException`을 내는 실패 모드(부록 A-1, v200450)를
  *  업로드 전에 미리 잡는다. keyColumn이 헤더에 없으면 스킵(WARN)이지 실패가 아니다 —
- *  시트마다 키 컬럼 이름이 다를 수 있어서 강제하지 않는다. */
+ *  시트마다 키 컬럼 이름이 다를 수 있어서 강제하지 않는다.
+ *
+ *  `line`은 checkRowColumnCounts와 같은 논리 행 인덱스 방식이라 같은 한계(따옴표 안 개행이
+ *  있는 행 이후로는 물리 줄 번호보다 작게 보고됨)를 그대로 갖는다 — 위 주석 참고. */
 export function checkKeyColumnNonEmpty(
   headers: readonly string[],
   rows: readonly string[][],
