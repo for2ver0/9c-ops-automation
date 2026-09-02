@@ -60,8 +60,8 @@
 
 **입력 소스 두 개**
 
-- **상금 파라미터** — 총 풀, 그룹별 배분 비율, **보너스 배수 3종**(스테이킹 lv2 = 0.5 / lv3 = 1.0 / **용기패스 = 1.2, 현행 라이브 운영값**). 상금 표 우측 6개 컬럼(조건별 1인 지급액)이 전부 이 배수에서 나옵니다.
-    - ℹ️ 코드 `CreateDefault()`의 용기패스 `1.0`은 baseline이 아니라 **폼 프리필 초기값**입니다(운영자가 `ArenaRewardCalc.razor`에서 직접 입력). 골든 픽스처 역산값은 **1.2**(용기패스 조건 승수 2.2 = 1 + 1.2, `Courage Pass 13,750 = Basic 6,250 × 2.2`).
+- **상금 파라미터** — 총 풀, 그룹별 배분 비율, **보너스 배수 3종**(스테이킹 lv2 = 0.5 / lv3 = 1.0 / **용기패스 — 시즌마다 다름, 아래 참고**). 상금 표 우측 6개 컬럼(조건별 1인 지급액)이 전부 이 배수에서 나옵니다.
+    - ℹ️ 코드 `CreateDefault()`의 용기패스 `1.0`은 baseline이 아니라 **폼 프리필 초기값**입니다(운영자가 `ArenaRewardCalc.razor`에서 직접 입력). Heimdall CS9는 담당자 실측 스크린샷으로 **1.2**가 역산 확인됐지만(용기패스 조건 승수 2.2 = 1 + 1.2, `Courage Pass 13,750 = Basic 6,250 × 2.2`), Odin S39는 같은 방식으로 확인된 적이 없고, percentages/couragePassMultiplier가 시즌·타입마다 다르다는 것 자체가 Heimdall 실측으로 드러났다(`golden-fixture-answer-1.md`). ⚠️ **"1.2"를 다른 시즌에도 재사용 가능한 상수로 취급하지 말 것** — 백오피스에 표시되는 값 자체가 최신이 아닐 수 있고, 지난 시즌 실데이터를 대사해 보면 배수가 다르게 나온 사례도 보고됐다(2026-09-02). 매 시즌 담당자에게 그 시즌의 실제 값을 확인받아야 한다.
     - ⚠️ **여기서 말하는 "총 풀"은 코드상 `RankingPool` 입니다.** UI에 `Total Pool` / `Competition %` / `Ranking Pool` 세 칸이 있지만 계산에 쓰이는 건 `RankingPool` 하나뿐이고(`groupReward = RankingPool × pct / 100`), 나머지 둘은 `GenerateTierGroups`에서 사용되지 않습니다. **조절 입력은 `RankingPool`에 붙여야 합니다**(`TotalPool`에 붙이면 값을 바꿔도 표가 안 변함).
 - **시즌 일정** — 시작 날짜/블록, 시즌 타입, 라운드 간격, 라운드 수. 담당자가 정함.
 
@@ -195,7 +195,7 @@
 | --- | --- |
 | 계산에 쓰이는 풀은 `RankingPool` 하나(`groupReward = RankingPool × pct / 100`). `TotalPool`·`CompetitionPercentage`는 미사용 inert 필드 | `ArenaRewardService.cs:568` `GenerateTierGroups` |
 | **코드 기본값**(폼 프리필): 배수 `StakingLv2 0.5` / `Lv3 1.0` / `CouragePass 1.0`, `RankingPool 500000`, `TotalPool 500000`, `CompetitionPercentage 100` | `ArenaRewardModels.cs:113-127` `CreateDefault()` |
-| **현행 운영 baseline**: 용기패스 배수 = **1.2**, 1구간 = 2명 / **8%**(코드 기본값은 2명/7%) → 비율·배수는 시즌별 운영자 입력. `eachPlayerGetsNone = groupReward / playerCount / (1 + StakingLv3 + CouragePass)` (상수 아님) | 골든 픽스처 역산(Heimdall CS9·Odin S39), `ArenaRewardService.cs:571`, `ArenaRewardCalc.razor:122` |
+| **Heimdall CS9 실측값**(2026-09-01, 담당자 스크린샷 대조): 용기패스 배수 = **1.2**, 1구간 = 2명 / **8%**(코드 기본값은 2명/7%). ⚠️ 이건 Heimdall CS9 **한 시즌**의 관측값이지 "현행 운영 baseline"이라 부를 수 있는 안정된 상수가 아니다 — Odin S39는 같은 방식으로 확인된 적이 없고(`golden-fixture-answer-1.md` 참고), percentages·couragePassMultiplier는 시즌·타입마다 다를 수 있음이 이 실측으로 드러났다. 백오피스에 표시되는 값도 최신이 아닐 수 있다는 보고(2026-09-02)까지 있으므로, 비율·배수는 매 시즌 운영자에게 그 시즌 값으로 확인받아야 한다. `eachPlayerGetsNone = groupReward / playerCount / (1 + StakingLv3 + CouragePass)` (상수 아님) | 골든 픽스처 역산(Heimdall CS9만 실측 확인), `ArenaRewardService.cs:571`, `ArenaRewardCalc.razor:122` |
 | `Season.TotalPrize`와 `RankingPool`을 잇는 코드는 **존재하지 않음.** `TotalPrize`는 ArenaService의 DB 컬럼이고 상금 계산 백오피스에서는 DTO 선언 한 줄뿐 읽는 코드가 없음(역직렬화용 사장 필드). `RankingPool`은 하드코딩 기본값과 UI 입력에서만 설정됨 | `Season.cs:39`, `ArenaServiceModels.cs:14`, `ArenaRewardModels.cs:127`, `ArenaRewardCalc.razor:548` |
 | 실지급은 총 풀 이하(`1인 기본 = 그룹상금 / 인원 / (1+lv3+pass)`, 정수 절삭). `Full Sum = Group Reward`는 최대치일 때만 | `GenerateTierGroups` |
 | 인원 합 초과 시 하위 랭커를 에러 없이 조용히 스킵(예외 잡고 `continue`) | `CalculateRewards` |

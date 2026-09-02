@@ -41,10 +41,13 @@ export const CODE_DEFAULT_CONFIG: RewardConfig = {
   rankingPool: 500_000,
   stakingLv2Multiplier: 0.5,
   stakingLv3Multiplier: 1.0,
-  // Spec doc §5: this is a form-prefill initial value, not baseline. Live operational
-  // value is 1.2 as of the golden-fixture derivation (2.2x multiplier on Courage Pass tier).
-  // CODE_DEFAULT_CONFIG intentionally keeps the code's literal 1.0 — callers that want the
-  // live baseline must pass it explicitly. Never silently substitute 1.2 here.
+  // Spec doc §5: this is a form-prefill initial value, not a stable baseline. Heimdall CS9
+  // was confirmed at 1.2 via golden-fixture derivation (2.2x multiplier on Courage Pass
+  // tier), but that is one season's observed value, not a constant — Odin S39 was never
+  // confirmed the same way, and the value is known to vary by season/type (and the
+  // backoffice's own displayed value can itself be stale). CODE_DEFAULT_CONFIG intentionally
+  // keeps the code's literal 1.0 — callers must pass the current season's confirmed value
+  // explicitly. Never silently substitute 1.2 (or any other remembered value) here.
   couragePassMultiplier: 1.0,
   groupDefinitions: [
     { playerCount: 2, rewardPercentage: 7 },

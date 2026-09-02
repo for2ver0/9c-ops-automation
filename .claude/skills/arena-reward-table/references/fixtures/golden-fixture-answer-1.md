@@ -131,6 +131,22 @@
 현상과 일치하는 것으로 보임 — 공식 자체가 틀렸다는 뜻은 아니고, 백엔드의 정확한 decimal 반올림 순서를
 모른 채 재계산하면 ±1 gold 오차가 날 수 있다는 기존 경고가 실측으로도 재확인된 것.
 
+> **🛠 2026-09-02 정정 필요성 확인**: 위 문단은 3-5 그룹 **1건**만 보고 "반올림 경계값 현상과 일치"라고
+> 판단했다. 그런데 `arena-reward-calc.ts`의 `generateTierGroups`/`convertTierGroupsToRewardTiers`로
+> 이 표 전체(10개 그룹)를 직접 재계산해보면(2026-09-02, `tools/9c/fixtures/arena-reward-table.golden.json`의
+> `heimdall-championship-9` 항목을 이 값으로 갱신하며 확인) **10개 그룹 중 8개**에서 위 표와 ±1 차이가
+> 난다 — 3-5뿐 아니라 6-9/16-25/26-50/51-87/88-125/126-250/251-500도 전부. 그런데 백엔드 소스
+> (`../backend-source/ArenaRewardService.cs:631`, `basicReward = (int)group.EachPlayerGetsNone` 등)가
+> 쓰는 건 `(int)` 캐스트, 즉 **0 방향 절삭(truncate)**이지 반올림이 아니다. "반올림 경계값" 현상은 참값이
+> 정확히 정수에 걸친 극소수 셀에서만(전형적으로 15% 안팎) JS double과 C# decimal의 중간 나눗셈 반올림
+> 방향이 갈리는 것인데, 이 표는 애초에 정수와 거리가 먼 값(예: 717.905)까지 전부 위로 반올림된 것처럼
+> 보여서 그 설명만으로는 부족하다. 즉 **이 표를 스크린샷에서 옮겨 적을 때 전사 오류가 있었거나, 그 전사가
+> 정확하더라도 percentages/couragePassMultiplier 추정이 아직 완전히 맞지 않을 가능성**이 있다 — "실측
+> 스크린샷 값 그대로"라는 이 절의 표 자체가 재검증 대상이라는 뜻. 골든 픽스처(`arena-reward-table.golden.json`)의
+> `expected`는 이 표가 아니라 **공식 계산값**(위 재계산 결과)을 쓰도록 고쳤다 — 회귀 테스트가 스스로도
+> 검증 못 한 전사값을 "정답"으로 고정하는 것을 피하기 위해서다. 실제 지급액을 다시 확정하려면 이 표
+> 대신 `arena-settlement-check`의 `X-API-Key`로 `/calculate` 원시값을 받아 대조할 것.
+
 ## 실측(주장)으로 픽스처에 박아둔 두 가지 — 이 세션에서 미검증, provenance 확인 필요
 
 1. **실참가자가 500명 미만**: Odin S39 = 416명, Heimdall CS9 = 403명. 최하위 구간(251-500, 250슬롯)이

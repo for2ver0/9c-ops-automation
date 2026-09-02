@@ -42,7 +42,7 @@ JS `number`(IEEE-754 double)로 재현하는데, 나눗셈 중간값이 정수 �
 | `RankingPool` | 500,000 |
 | `StakingLv2Multiplier` | 0.5 |
 | `StakingLv3Multiplier` | 1.0 |
-| `CouragePassMultiplier` | 1.0 (⚠️ 폼 프리필값 — 라이브 운영 baseline은 1.2. 스펙 문서 §5 참고) |
+| `CouragePassMultiplier` | 1.0 (⚠️ 폼 프리필값일 뿐, 안정된 "운영 baseline"은 없다 — Heimdall CS9는 1.2로 실측 확인됐지만 그 시즌 한 건일 뿐, Odin S39는 미확인이고 시즌마다 다를 수 있다. 스펙 문서 §5 참고) |
 
 `GroupDefinitions` (10구간):
 

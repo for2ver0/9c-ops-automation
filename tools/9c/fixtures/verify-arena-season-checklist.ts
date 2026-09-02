@@ -22,6 +22,11 @@ try {
   const announceJson = join(dir, "announce.json");
   const settlementJson = join(dir, "settlement.json");
 
+  // ⚠️ 아래 --percentages/--courage-pass 등은 이 회귀 테스트 전용 합성 입력값이다 — 실제 시즌의
+  // 확인된 값이 아니다. 어느 시즌과도 매칭하지 않으므로 실제 실행 명령을 만들 때 이 줄을 그대로
+  // 복사하지 말 것(2026-09-02: 이 줄을 그대로 복사해 couragePass=1.0을 실제 시즌 값으로 착각한
+  // 사고가 실제로 있었다). 실제 실행 시 필요한 값은 arena-reward-table/SKILL.md §1·§3을 보고
+  // 그 시즌 담당자에게 확인받을 것.
   await $`bun run tools/9c/arena-reward-table.ts --table-only --json --pool 400000 --percentages 7,8,7,9,12,18,18,12,6,3 --players 2,3,4,6,10,25,37,38,125,250 --staking-lv2 0.5 --staking-lv3 1.0 --courage-pass 1.0`.text().then((t) => Bun.write(rewardJson, t));
 
   await $`bun run tools/9c/arena-season-preview.ts --network odin --season-group-id 39 --arena-type SEASON --season-start-block 19260824 --round-interval 10800 --round-count 14 --required-medal-count 0 --total-prize 400000 --battle-policy-id 4 --refresh-policy-id 4 --json`.text().then((t) => Bun.write(previewJson, t));
