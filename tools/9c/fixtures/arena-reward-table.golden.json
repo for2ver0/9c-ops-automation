@@ -115,7 +115,7 @@
           { "id": "players-sum", "name": "sum(playerCount) == 500", "ok": true },
           { "id": "percent-sum", "name": "sum(rewardPercentage) == 100", "ok": true },
           { "id": "group-reward-sum", "name": "sum(groupReward) == RankingPool", "ok": true },
-          { "id": "payout-upper-bound", "name": "maxPayout <= RankingPool (등호 아님)", "ok": true }
+          { "id": "payout-upper-bound", "name": "maxPayout <= RankingPool (총합) / <= groupReward (그룹별), 등호 아님", "ok": true }
         ],
         "exitCode": 0
       }
@@ -223,7 +223,7 @@
           { "id": "players-sum", "name": "sum(playerCount) == 500", "ok": true },
           { "id": "percent-sum", "name": "sum(rewardPercentage) == 100", "ok": true },
           { "id": "group-reward-sum", "name": "sum(groupReward) == RankingPool", "ok": true },
-          { "id": "payout-upper-bound", "name": "maxPayout <= RankingPool (등호 아님)", "ok": true },
+          { "id": "payout-upper-bound", "name": "maxPayout <= RankingPool (총합) / <= groupReward (그룹별), 등호 아님", "ok": true },
           { "id": "rounding-boundary-risk", "name": "부동소수점 반올림 경계값 없음", "ok": false }
         ],
         "exitCode": 0

@@ -182,12 +182,15 @@ bun run tools/9c/arena-reward-table.ts --table-only \
 | --- | --- | --- |
 | **OK** | 계속 | 인원 합 500, 비율 합 100%, 실지급 ≤ 풀 |
 | **WARN** | 계속하되 리포트에 표기, 판단은 사람에게 | `TotalPrize ≠ RankingPool`, 테이블 밖 랭크 스킵, 스테이킹 매칭 실패, 용기패스 100명 도달, 부동소수점 반올림 경계값 |
-| **FATAL** | 중단(exit 1) | 인원 합 ≠ 500, 비율 합 ≠ 100%, `sum(groupReward) ≠ RankingPool`, 실지급 상한 초과 |
+| **FATAL** | 중단(exit 1) | 인원 합 ≠ 500, 비율 합 ≠ 100%, `sum(groupReward) ≠ RankingPool`, 실지급 상한 초과(총합 또는 그룹별) |
 
 `checkInvariants`(순수 함수, `tools/9c/lib/arena-reward-calc.ts`)가 5개 기본 불변식(`players-sum` /
 `percent-sum` / `group-reward-sum` / `payout-upper-bound` / `rounding-boundary-risk`)을 내고, CLI가
 라이브/CSV 데이터가 있을 때 추가로 `total-prize-vs-ranking-pool`(WARN) / `skipped-ranks`(WARN) /
 `staking-match-failures`(WARN) / `courage-pass-premium-100`(WARN)을 더한다.
+`payout-upper-bound`는 총합(`sum <= RankingPool`)뿐 아니라 그룹별(각 그룹의 최대 지급액 <= 그 그룹의
+`groupReward`)로도 확인한다 — 한 그룹이 초과 지급되고 다른 그룹이 그만큼 덜 나가 총합에서는 상쇄되는
+경우를 총합 검사만으로는 못 잡기 때문.
 
 ### 4-1. `rounding-boundary-risk` — C# decimal vs JS double (2026-08-31 확인)
 

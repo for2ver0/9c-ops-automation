@@ -501,18 +501,26 @@ export function checkInvariants(config: RewardConfig, tierGroups: readonly TierG
 
   // Upper bound, not equality — every player would need staking lv3 + courage pass to
   // reach it, and int truncation shaves a little more off even then. See spec doc §6:
-  // "실지급 ≤ 총 풀... 등호로 두면 매 시즌 오탐이 난다".
+  // "실지급 ≤ 총 풀... 등호로 두면 매 시즌 오탐이 난다". Checked both per-group (a single
+  // group's max payout must not exceed the reward pooled for THAT group) and in total —
+  // the two can diverge (one group overpaying while another underpays cancels out in the
+  // sum), so the aggregate check alone would miss a per-group miscalculation.
   const tiers = convertTierGroupsToRewardTiers(tierGroups, config);
-  const maxPayout = tierGroups.reduce((sum, g) => {
+  const groupMaxes = tierGroups.map((g) => {
     const tier = tiers.find((t) => t.rankRangeMin === g.minRank)!;
-    return sum + g.playerCount * (tier.basicReward + tier.couragePassAndStaking3Reward);
-  }, 0);
-  const payoutOk = maxPayout <= config.rankingPool;
+    return { group: g, groupMax: g.playerCount * (tier.basicReward + tier.couragePassAndStaking3Reward) };
+  });
+  const maxPayout = groupMaxes.reduce((sum, { groupMax }) => sum + groupMax, 0);
+  const overGroups = groupMaxes.filter(({ group, groupMax }) => groupMax > group.groupReward + 1e-9);
+  const payoutOk = maxPayout <= config.rankingPool && overGroups.length === 0;
   invariants.push({
     id: "payout-upper-bound",
-    name: "maxPayout <= RankingPool (등호 아님)",
+    name: "maxPayout <= RankingPool (총합) / <= groupReward (그룹별), 등호 아님",
     ok: payoutOk,
-    detail: `max ${maxPayout} vs pool ${config.rankingPool} (residual ${config.rankingPool - maxPayout})`,
+    detail:
+      (overGroups.length > 0
+        ? `그룹별 상한 위반: ${overGroups.map(({ group, groupMax }) => `${group.rankGroup}(${groupMax} > ${group.groupReward})`).join(", ")}; `
+        : "") + `max ${maxPayout} vs pool ${config.rankingPool} (residual ${config.rankingPool - maxPayout})`,
     level: payoutOk ? "OK" : "FATAL",
   });
 
