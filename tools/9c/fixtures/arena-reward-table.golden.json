@@ -177,7 +177,7 @@
               {
                 "sharedRank": 6, "tiedPlayers": 2, "vacatedRank": 5,
                 "wouldBeBracket": "3-5", "actualBracket": "6-9",
-                "basicIfVacatedRank": 4444, "basicAtSharedRank": 2916, "basicDelta": -1528
+                "basicIfVacatedRank": 4166, "basicAtSharedRank": 3125, "basicDelta": -1041
               }
             ]
           }

@@ -53,7 +53,7 @@
 레포에 있다"는 설명과 모순되지 않는다.
 
 Mimir GraphQL의 `transaction(txId:)` 쿼리로 **tx 상태(txStatus: SUCCESS/FAILURE/STAGING/
-INCLUDED/INVALID) 조회는 인증 없이 된다**는 것도 실제 tx로 확인했다 — 스펙 §7-1 "지급 후
+INCLUDED/INVALID) 조회는 인증 없이 된다**는 것도 실제 tx로 확인했다 — 스펙 §6-1 "지급 후
 거래 성공 여부 확인은 읽기 동작이라 자동화해도 안전합니다"와 정확히 맞아떨어지는, 지금 당장
 자동화 가능한 유일한 조각이다.
 

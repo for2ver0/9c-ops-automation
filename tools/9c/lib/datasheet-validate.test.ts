@@ -49,6 +49,19 @@ describe("parseCsv", () => {
     expect(csv.rows).toHaveLength(2);
   });
 
+  test("preserves a blank line in the middle of the file as its own row (no line-number drift)", () => {
+    // Regression: an earlier version dropped ANY row shaped like a blank line, not just a
+    // trailing phantom one, which shifted every row after the blank line up by one and made
+    // checkRowColumnCounts/checkKeyColumnNonEmpty report the wrong physical line number.
+    const csv = parseCsv("Id,Name\n1,A\n\n2,B\n");
+    expect(csv.rows).toEqual([["1", "A"], [""], ["2", "B"]]);
+  });
+
+  test("still drops a single trailing blank line (phantom row from trailing newline)", () => {
+    const csv = parseCsv("Id,Name\n1,A\n2,B\n\n");
+    expect(csv.rows).toEqual([["1", "A"], ["2", "B"]]);
+  });
+
   test("returns empty headers/rows for empty input", () => {
     expect(parseCsv("")).toEqual({ headers: [], rows: [] });
   });

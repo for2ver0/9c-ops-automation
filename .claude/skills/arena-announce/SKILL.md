@@ -89,7 +89,7 @@ bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-announce.ts" --odin-sea
 | 등급 | 이 스킬에서 실제로 나오는 항목 |
 | --- | --- |
 | **OK** | seasonGroupId 정상, 직전 시즌 +1 번호 일치, 시작 시각 근접 |
-| **WARN** | 챔피언십의 `requiredMedalCount==0`(메달 문단 검토 필요 — 0이 아니면 정상 범위라 WARN 없음), 직전 시즌 +1 번호가 안 맞음, 페어 시작 시각이 3일 이상 벌어짐 |
+| **WARN** | 챔피언십의 `requiredMedalCount==0`(메달 문단 검토 필요 — 0이 아니면 정상 범위라 WARN 없음), 직전 시즌 +1 번호가 안 맞음, 페어 시작 시각이 3일 초과로 벌어짐(정확히 3일까지는 정상 범위) |
 | **FATAL** | `seasonGroupId == 0` — **초안 자체를 안 보여준다.** 데이터가 잘못된 채로 사람이 실수로 그대로 게시하는 걸 막는 게 이 등급의 존재 이유 |
 
 `seasonGroupId == 0`은 **두 가지 독립된 체크**(정확히 0인지 / 직전 시즌+1과 일치하는지)로 동시에

@@ -68,6 +68,15 @@ describe("golden text — sample 1 (Odin Season 39 / Heimdall Championship 9, me
     expect(draft.body).not.toContain("medals required");
   });
 
+  test("MEDAL_NOTE_REFERENCE_TEXT matches the verbatim text in references/announcement-samples.md byte-for-byte", () => {
+    // Copied literally from .claude/skills/arena-announce/references/announcement-samples.md
+    // (not re-derived from MEDAL_NOTE_REFERENCE_TEXT itself) so a drift in either place is caught.
+    expect(MEDAL_NOTE_REFERENCE_TEXT).toBe(
+      "For the time being, the medals required to participate in the Championship have been adjusted to 0\n" +
+        "for adventurers newly exploring NineChronicles through Ragnarok Breaker — we look forward to your active participation!",
+    );
+  });
+
   test("checkAnnouncementPair reports it as WARN, not FATAL — the DRAFT is still usable, a human decides", () => {
     const checks = checkAnnouncementPair(odin, heimdall);
     const medalCheck = checks.find((c) => c.id === "championship-medal-note-heimdall")!;

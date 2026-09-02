@@ -91,5 +91,11 @@ function tokenizeCsvRows(text: string): string[][] {
     endRow();
   }
   // 파일 끝의 완전히 빈 줄(트레일링 개행)로 생긴 [""] 한 칸짜리 행은 실질적으로 빈 줄이므로 버린다.
-  return rows.filter((r) => !(r.length === 1 && r[0] === ""));
+  // 마지막 행에만 적용한다 — 파일 중간의 빈 줄까지 지우면 그 뒤 모든 행의 원본 줄 번호가
+  // 어긋난다(Backoffice CsvValidationService의 결함, 설계 문서 부록 A-1과 동일한 실패 모드).
+  const last = rows[rows.length - 1];
+  if (last !== undefined && last.length === 1 && last[0] === "") {
+    rows.pop();
+  }
+  return rows;
 }

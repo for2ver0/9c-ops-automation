@@ -10,7 +10,7 @@
  * calculation API (`/api/arena/reward/calculate`) is stateless and needs an API key this
  * environment doesn't have yet.
  *
- * What IS built here is the one piece confirmed safe to automate regardless (spec §7-1:
+ * What IS built here is the one piece confirmed safe to automate regardless (spec §6-1:
  * "지급 후 거래(tx) 성공 여부 확인은 읽기 동작이라 자동화해도 안전합니다") and genuinely
  * needed: the settlement page's Sign/Stage state lives only in Blazor circuit memory and is
  * lost on refresh, so a txId copied out before refreshing is the only way back to "did this

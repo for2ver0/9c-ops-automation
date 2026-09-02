@@ -2,7 +2,7 @@
  * On-chain transaction status lookup, via Mimir.
  *
  * Built for arena-settlement-check's one confirmed-safe-to-automate piece (spec doc
- * §7-1: "지급 후 거래(tx) 성공 여부 확인은 읽기 동작이라 자동화해도 안전합니다").
+ * §6-1: "지급 후 거래(tx) 성공 여부 확인은 읽기 동작이라 자동화해도 안전합니다").
  *
  * Context that makes this genuinely useful, not just a convenience wrapper (investigated
  * 2026-08-30 — see .claude/skills/arena-settlement-check/references/settlement-investigation.md):
@@ -18,7 +18,7 @@
  * against a real Odin tx (SUCCESS, unauthenticated).
  */
 
-import { getNetworkInfo, requireMimirHost, type ArenaNetwork } from "./arena-network";
+import { requireMimirHost, type ArenaNetwork } from "./arena-network";
 
 export type TxStatus = "SUCCESS" | "FAILURE" | "STAGING" | "INCLUDED" | "INVALID";
 
@@ -68,7 +68,3 @@ export async function fetchTxStatus(network: ArenaNetwork, txId: string): Promis
   const { blockIndex, object: obj } = body.data.transaction;
   return { network, txId: obj.id, status: obj.txStatus, signer: obj.signer, blockIndex };
 }
-
-/** getNetworkInfo re-exported for CLI convenience (mirrors arena-reward-sources.ts's
- *  pattern of re-exporting arena-network.ts helpers it uses internally). */
-export { getNetworkInfo };

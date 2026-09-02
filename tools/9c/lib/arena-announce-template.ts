@@ -53,7 +53,7 @@ const FIXED_HEADER = [
  *  to the human as a reference, never spliced into the generated draft automatically —
  *  see module doc comment for why. */
 export const MEDAL_NOTE_REFERENCE_TEXT =
-  "For the time being, the medals required to participate in the Championship have been adjusted to 0 \n" +
+  "For the time being, the medals required to participate in the Championship have been adjusted to 0\n" +
   "for adventurers newly exploring NineChronicles through Ragnarok Breaker — we look forward to your active participation!";
 
 function networkLabel(network: "odin" | "heimdall"): string {
