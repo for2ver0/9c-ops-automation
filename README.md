@@ -43,6 +43,33 @@ macOS 터미널(zsh/bash)은 이 명령어들이 쓰는 문법(`$(...)`, 큰따�
 
 ## 2. 정규 운영 업데이트
 
+### 2.0 처리 흐름 (사용자 설명, 2026-09-03)
+
+담당자가 실제로 겪는 정규 업데이트 운영은 이런 순서다 — 업데이트 타겟(어드벤처·아레나·
+이벤트 던전·인피니트 타워 등)이 뭐든 이 7단계는 공통이다.
+
+| # | 단계 | 담당 스킬 | 상태 |
+| --- | --- | --- | --- |
+| ① | 사용자가 기획서를 agent에게 전달 (adventure/arena/이벤트 던전/infinite tower 등 타겟 무관) | — | 사람이 입력, 스킬 없음 |
+| ② | agent가 기획서 기반으로 데이터 시트 작성 + 기획서 대비 재확인 + 이상 데이터 확인 | [`spec-datasheet-check`](.claude/skills/spec-datasheet-check/SKILL.md) (기획서 대사) + [`datasheet-validate`](.claude/skills/datasheet-validate/SKILL.md) (구조적 이상 검출) | 부분 구현 — "시트가 기획서와 일치하는가"(대사)·"CSV 구조가 이상한가"는 됨. "빈 시트를 기획서 보고 채우는" 작성 자체는 여전히 미착수(`spec-to-datasheet`, 노션 대기) |
+| ③ | 이상 없으면 데이터 시트를 인터널(백오피스 스테이징)에 배포 | [`datasheet-release-gate`](.claude/skills/datasheet-release-gate/SKILL.md) (업로드 전 게이트) | 부분 구현 — ②의 두 검증을 시트별로 집계해 "올려도 되는가"만 판단. 실제 스테이징 업로드 자체는 D4 원칙상 항상 사람이 직접(백오피스 API를 이 환경에서 확인 못 함) |
+| ④ | QA 담당자가 인터널 배포본을 리뷰 | [`qa-checklist`](.claude/skills/qa-checklist/SKILL.md) | 부분 구현 — 시트 전/후 diff만. "무엇을 테스트해야 하는지" 매핑은 미착수 |
+| ⑤ | QA 피드백 반영해 ③~④ 반복 → 이상 없으면 깃북에 릴리즈 노트 작성 | [`release-notes`](.claude/skills/release-notes/SKILL.md) | 부분 구현 — 초안 정리까지, 실제 깃북 게시는 사람 |
+| ⑥ | agent가 업데이트 공지글을 디스코드에 공지 | [`announce-fanout`](.claude/skills/announce-fanout/SKILL.md) | 부분 구현 — 정규 업데이트 공지 변환만, 초안까지. 실제 게시는 항상 사람(자동 게시 경로 자체가 없음) |
+| ⑦ | agent가 최종 컨펌된 데이터 시트를 메인넷에 배포 | [`release-guard`](.claude/skills/release-guard/SKILL.md) + [`deploy-prep`](.claude/skills/deploy-prep/SKILL.md) | 부분 구현 — 배포 전/후 체크리스트·일관성 대조까지, 실제 Manage Apv 실행은 항상 사람(D4) |
+
+②·③은 2026-09-03에 새로 채운 공백이다 — 그 전까지는 "기획서와 시트가 맞는지"·"인터널
+배포 전에 뭘 확인해야 하는지"에 대응하는 스킬이 전혀 없었다. `spec-datasheet-check`는
+원래 `spec-to-datasheet`(노션 API로 기획 문서를 직접 읽는 설계)가 막혀 있는 상황
+(`docs/9c-update-automation-notion-request.md` ②, `NOTION_TOKEN` 자체가 이 환경에 없음)을
+우회한다 — 기획서를 노션이 아니라 **사람이 직접 텍스트/파일로 전달**한다는 전제로,
+기획서에서 뽑은 assertions(JSON)와 실제 CSV를 기계적으로 대조한다. `datasheet-release-gate`는
+"인터널 배포"가 **백오피스 스테이징 환경**을 가리킨다는 걸 확인한 뒤(담당자 확인,
+2026-09-03), 실제 업로드는 D4 원칙(자동화는 라이브를 바꾸지 않는다)상 여전히 사람이 하되
+그 직전 게이트만 자동화했다 — `arena-season-checklist`와 같은 "계산 없이 집계만" 패턴.
+
+### 2.1 8개 스크립트 원설계 대비 현황
+
 원설계는 8개 스크립트(자동화는 "정제 이슈 초안"까지만 만들고, 검토·승인·배포 실행은 항상
 사람)로 그려졌다. 처음엔 대부분이 권한 승인 대기 중이라 여겼는데, 실제로 확인해보니 애초에
 권한이 필요 없던 항목이 둘 있었다 — 밸런스 시트는 이미 무인증 공개 상태였고, 디스코드는
@@ -55,18 +82,22 @@ macOS 터미널(zsh/bash)은 이 명령어들이 쓰는 문법(`$(...)`, 큰따�
 | --- | --- | --- |
 | [`release-guard`](.claude/skills/release-guard/SKILL.md) | 깃북 릴리즈 노트 vs 메인넷 APV vs 인게임 공지판 일관성 대조 + `Event.json` 현재 값 스냅샷 | 부분 구현 — 일관성·헤드 대조 + Event.json 현재 값 스냅샷(`--event-log-file`, 2026-09-01 확인: 공개 CDN이 S3와 같은 오브젝트라 권한 불필요). 과거 버전 소급 조회만 S3 권한 대기(범위 좁아짐) |
 | [`datasheet-validate`](.claude/skills/datasheet-validate/SKILL.md) | 밸런스 시트 CSV 구조적 검증 + 회차 간 diff(1차 필수) | 부분 구현 — 중복 헤더·행별 컬럼 수·키 컬럼 공백·행 수 급감(v200450 실패 모드 3종 회귀 포함)·`--baseline-csv` 회차 diff(qa-checklist의 diffSheet 재사용, 미해결 B 중 diff 기준선 쪽은 lib9c git 이력 조사로 "별도 스냅샷"으로 판단 — 대상 브랜치·PR 타겟 쪽은 여전히 미결정). 시트 간 참조 ID·타입 검증만 lib9c 스키마 매핑 선행 필요로 미착수 |
+| [`spec-datasheet-check`](.claude/skills/spec-datasheet-check/SKILL.md) | 기획서(사람이 직접 전달) assertions ↔ 실제 CSV 값 대사 | 2026-09-03 신규, 부분 구현 — 값 대사(MISMATCH/ROW_NOT_FOUND/COLUMN_NOT_FOUND)만. assertions 자동 추출은 의도적으로 미착수(에이전트가 매번 판단) |
+| [`datasheet-release-gate`](.claude/skills/datasheet-release-gate/SKILL.md) | 인터널(백오피스 스테이징) 배포 전, datasheet-validate + spec-datasheet-check 결과를 시트별로 집계하는 게이트 | 2026-09-03 신규, 부분 구현 — 집계만. 실제 스테이징 업로드 자동화는 D4 원칙상 범위 밖 |
 | [`deploy-prep`](.claude/skills/deploy-prep/SKILL.md) | 배포 전/후 체크리스트 + `latest.json` 롤백 스냅샷 + APV 결번 검사(release-guard 로직 재사용) | 부분 구현 — Manage Apv 워크플로 실제 트리거·PR/브랜치/태그/changelog 자동화는 D4 원칙(자동화가 라이브를 안 바꿈)상 범위 밖, 입력값 계산까지만 하고 항상 사람이 실행 |
 | [`qa-checklist`](.claude/skills/qa-checklist/SKILL.md) | 시트 CSV 전/후 diff → 추가·삭제·변경 행 QA 체크리스트 | 부분 구현 — "무엇이 바뀌었는지"만. "그래서 무엇을 테스트해야 하는지"(시트별 기능 매핑)는 lib9c 도메인 지식 필요로 미착수 |
 | [`announce-fanout`](.claude/skills/announce-fanout/SKILL.md) | 인게임 공지(EN/KR/JP) → 디스코드 공지 초안 재포장 + 언어별 불일치 검사 | 부분 구현 — 정규 업데이트 공지 변환만. 휴장/이벤트 공지 초안은 미착수 — Event.json 읽기 자체는 더 이상 안 막혀 있지만(2026-09-01 확인), 그 파일엔 배너 메타데이터만 있고 초안화할 문구가 없음 |
-| `spec-to-datasheet` / `datasheet-to-csv` | 밸런스 시트 파이프라인 나머지 2종(1차 필수) | 미착수 — 각각 노션 공유 확인·(lib9c push 확인 + 기존 CSV 익스포트 도구 소유·운영 실태 조사) 필요 |
+| `spec-to-datasheet` / `datasheet-to-csv` | 밸런스 시트 파이프라인 나머지 2종(1차 필수) | 미착수 — 각각 노션 공유 확인·(lib9c push 확인 + 기존 CSV 익스포트 도구 소유·운영 실태 조사) 필요. `spec-to-datasheet`가 하려던 일 중 "기획서 대사"만 `spec-datasheet-check`가 노션 없이 먼저 채움 — "시트 입력값 제안"은 여전히 이 항목에 남아있음 |
 | [`release-notes`](.claude/skills/release-notes/SKILL.md) | 버전+카테고리별 항목 → 깃북 붙여넣기용 릴리즈 노트 초안 | 부분 구현 — 버전 대사(+10 관행, 중복 게시 방지)·섹션 정리만. ⑥ 확인(깃북 에디터 직접 입력, GitHub 토큰 불필요)으로 착수. 문구는 짓지 않고 사람이 준 것만 정리 — 정확한 마크다운 문법은 원본 저장소(`nine-chronicles-docs`, 비공개) 미확인으로 검증 못 함 |
 
 도구 코드는 `tools/9c/release-guard.ts` + `tools/9c/lib/release-guard.ts`, `tools/9c/datasheet-validate.ts`
-+ `tools/9c/lib/datasheet-validate.ts`, `tools/9c/deploy-prep.ts` + `tools/9c/lib/deploy-prep.ts`,
++ `tools/9c/lib/datasheet-validate.ts`, `tools/9c/spec-datasheet-check.ts` +
+`tools/9c/lib/spec-datasheet-check.ts`, `tools/9c/datasheet-release-gate.ts` +
+`tools/9c/lib/datasheet-release-gate.ts`, `tools/9c/deploy-prep.ts` + `tools/9c/lib/deploy-prep.ts`,
 `tools/9c/qa-checklist.ts` + `tools/9c/lib/qa-checklist.ts`, `tools/9c/announce-fanout.ts` +
 `tools/9c/lib/announce-fanout.ts`, `tools/9c/release-notes.ts` + `tools/9c/lib/release-notes.ts`.
-CSV 파서(`tools/9c/lib/csv.ts`)는 datasheet-validate와 qa-checklist가 공유한다(순환 참조
-방지용 분리). release-guard는 실행할 때마다 결과가 바뀌는 진단 도구다 — 2026-08-30/31
-조사 시점엔 실제 프로덕션 상태(인게임 공지판이 깃북보다 2차수 뒤처진 상태)를 FATAL로
-잡아냈다(그 시점의 스냅샷이지 항상 유효한 현재 상태가 아님) — 조사 근거는
+CSV 파서(`tools/9c/lib/csv.ts`)는 datasheet-validate·qa-checklist·spec-datasheet-check가
+공유한다(순환 참조 방지용 분리). release-guard는 실행할 때마다 결과가 바뀌는 진단 도구다 —
+2026-08-30/31 조사 시점엔 실제 프로덕션 상태(인게임 공지판이 깃북보다 2차수 뒤처진 상태)를
+FATAL로 잡아냈다(그 시점의 스냅샷이지 항상 유효한 현재 상태가 아님) — 조사 근거는
 [`references/release-guard-investigation.md`](.claude/skills/release-guard/references/release-guard-investigation.md).
