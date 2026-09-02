@@ -4,6 +4,7 @@ import {
   checkAssertion,
   checkAssertions,
   filterAssertionsForSheet,
+  findConflictingAssertions,
   overallLevel,
   type Assertion,
 } from "./spec-datasheet-check";
@@ -113,5 +114,61 @@ describe("overallLevel", () => {
 
   test("OK for an empty result list", () => {
     expect(overallLevel([])).toBe("OK");
+  });
+});
+
+// --- 2026-09-03 회귀: spec-to-datasheet를 만들다 이 스킬에서도 발견한 결함 2건 -----------
+
+describe("중복 키가 있는 시트", () => {
+  // 첫 행만 보던 버전은 뒤쪽 중복 행이 옛 값을 갖고 있어도 "일치"로 통과시켰다 —
+  // 검증 스킬이 놓치면 그대로 인터널/메인넷까지 간다.
+  const dup = parseCsv("Id,Name,Cooldown\n10113000,A,3\n10113000,A dup,9\n");
+
+  test("중복 행 중 하나라도 기대값과 다르면 MISMATCH(FATAL)로 잡고 값을 다 보여준다", () => {
+    const r = checkAssertion(dup, "Id", { id: "10113000", column: "Cooldown", expected: "3" });
+    expect(r.status).toBe("MISMATCH");
+    expect(r.level).toBe("FATAL");
+    expect(r.detail).toContain('"3", "9"');
+    expect(r.detail).toContain("행이 2개");
+  });
+
+  test("중복 행이 전부 기대값과 같으면 WARN — 통과시키되 원본 확인을 요구한다", () => {
+    const same = parseCsv("Id,Name,Cooldown\n10113000,A,3\n10113000,A dup,3\n");
+    const r = checkAssertion(same, "Id", { id: "10113000", column: "Cooldown", expected: "3" });
+    expect(r.status).toBe("OK");
+    expect(r.level).toBe("WARN");
+  });
+});
+
+describe("findConflictingAssertions", () => {
+  test("같은 id+column에 다른 expected가 있으면 모순으로 잡는다", () => {
+    const conflicts = findConflictingAssertions([
+      { id: "1", column: "A", expected: "3" },
+      { id: "1", column: "A", expected: "7" },
+    ]);
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0]!.expectedValues).toEqual(["3", "7"]);
+  });
+
+  test("표기만 다른 같은 값(3 vs 3.0)은 모순이 아니다", () => {
+    expect(
+      findConflictingAssertions([
+        { id: "1", column: "A", expected: "3" },
+        { id: "1", column: "A", expected: "3.0" },
+      ]),
+    ).toHaveLength(0);
+  });
+
+  test("모순이 있으면 checkAssertions 결과에 실려 나온다", () => {
+    const { conflicts } = checkAssertions(
+      csv,
+      "Id",
+      [
+        { id: "10113000", column: "Cooldown", expected: "3" },
+        { id: "10113000", column: "Cooldown", expected: "7" },
+      ],
+      null,
+    );
+    expect(conflicts).toHaveLength(1);
   });
 });

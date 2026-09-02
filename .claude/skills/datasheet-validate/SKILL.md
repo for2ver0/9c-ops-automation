@@ -158,4 +158,4 @@ FATAL이 하나라도 있으면 exit 1. 시트 탭마다(=lib9c TableCSV 파일�
 | 시트 간 참조 ID 검증 | 미착수 | lib9c 시트별 참조 규칙 매핑 (별도 조사) |
 | 컬럼 타입 검증 | 미착수 | 시트별 컬럼 타입 정의 (별도 조사) |
 | 미해결 B — 대상 브랜치·PR 타겟(main 대 development) | 미결정 — 이번 조사는 회차 diff 기준선만 답함 | `datasheet-to-csv` 착수 시 함께 결정 |
-| `spec-to-datasheet` | 미착수 — 별도 스킬 | ② 노션 페이지 Connections 공유 확인 |
+| `spec-to-datasheet` | 착수됨(2026-09-03) — 별도 스킬 | 노션 없이 구현됨(기획서를 사람이 직접 전달하는 전제). `.claude/skills/spec-to-datasheet/SKILL.md` 참고 |

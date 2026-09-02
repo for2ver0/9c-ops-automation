@@ -15,7 +15,13 @@
  *   ]
  */
 import { parseCsv } from "./lib/csv";
-import { checkAssertions, overallLevel, type Assertion, type AssertionResult } from "./lib/spec-datasheet-check";
+import {
+  checkAssertions,
+  overallLevel,
+  type Assertion,
+  type AssertionConflict,
+  type AssertionResult,
+} from "./lib/spec-datasheet-check";
 
 interface Args {
   csvPath?: string;
@@ -83,15 +89,18 @@ async function main() {
   if (csv.headers.length === 0) throw new Error("CSV에서 헤더 행을 읽지 못했습니다.");
 
   const assertions = await readAssertions(args.assertionsPath!);
-  const { results, skipped } = checkAssertions(csv, args.keyColumn, assertions, args.sheetName);
+  const { results, skipped, conflicts } = checkAssertions(csv, args.keyColumn, assertions, args.sheetName);
 
+  const baseLevel = results.length === 0 ? "OK" : overallLevel(results);
   const summary = {
     source: args.csvPath!,
     sheetName: args.sheetName,
     totalAssertions: assertions.length,
     applicable: results.length,
     skipped,
-    level: results.length === 0 ? "OK" : overallLevel(results),
+    // 입력 파일이 모순되면 어떤 시트 값으로도 만족시킬 수 없으므로 결과와 무관하게 FATAL.
+    level: conflicts.length > 0 ? "FATAL" : baseLevel,
+    conflicts,
     results,
   };
 
@@ -110,14 +119,22 @@ function printHumanReadable(summary: {
   applicable: number;
   skipped: number;
   level: string;
+  conflicts: AssertionConflict[];
   results: AssertionResult[];
 }) {
   console.log(`전체 상태: ${summary.level}`);
   console.log(`소스: ${summary.source}${summary.sheetName ? ` (시트: ${summary.sheetName})` : ""}`);
   console.log(`assertion ${summary.totalAssertions}건 중 이 시트에 해당 ${summary.applicable}건, 건너뜀(다른 시트용) ${summary.skipped}건`);
   console.log("");
+  if (summary.conflicts.length > 0) {
+    console.log("## 입력 파일 자체의 모순 (시트를 어떻게 고쳐도 만족 불가)");
+    for (const c of summary.conflicts) {
+      console.log(`[FATAL] ${c.id}의 "${c.column}"에 서로 다른 기대값: ${c.expectedValues.map((v) => `"${v}"`).join(" vs ")}`);
+    }
+    console.log("");
+  }
   for (const r of summary.results) {
-    const mark = r.status === "OK" ? "OK   " : "FATAL";
+    const mark = r.level === "OK" ? "OK   " : r.level === "WARN" ? "WARN " : "FATAL";
     console.log(`[${mark}] ${r.detail}`);
   }
   if (summary.applicable === 0) {

@@ -1,6 +1,6 @@
 ---
 name: regular-update-prep
-description: 나인 크로니클 정규 운영 업데이트 전체 프로세스(기획서 → 데이터시트 작성·검증 → 인터널(백오피스 스테이징) 배포 → QA 리뷰 → 깃북 릴리즈 노트 → 디스코드 공지 → 메인넷 배포)를 8개 스킬(spec-datasheet-check·datasheet-validate·datasheet-release-gate·qa-checklist·release-notes·announce-fanout·deploy-prep·release-guard)로 안내하는 오케스트레이션 가이드. "이번 업데이트 진행하자", "정규 업데이트 프로세스 시작해줘", "다음 단계 뭐야" 같은 요청에 사용. 업데이트 타겟(어드벤처·아레나·이벤트 던전·인피니트 타워 등)이 뭐든 흐름은 동일하다. 이 스킬 자체는 아무것도 계산·실행하지 않는다 — 언제 어느 하위 스킬을 어떤 입력으로 부르고, 어디서 반드시 사람이 확인·실행해야 하는지만 안내한다. 실제 백오피스 업로드·깃북 게시·디스코드 게시·메인넷 배포는 항상 사람이 한다.
+description: 나인 크로니클 정규 운영 업데이트 전체 프로세스(기획서 → 데이터시트 작성·검증 → 인터널(백오피스 스테이징) 배포 → QA 리뷰 → 깃북 릴리즈 노트 → 디스코드 공지 → 메인넷 배포)를 9개 스킬(spec-to-datasheet·spec-datasheet-check·datasheet-validate·datasheet-release-gate·qa-checklist·release-notes·announce-fanout·deploy-prep·release-guard)로 안내하는 오케스트레이션 가이드. "이번 업데이트 진행하자", "정규 업데이트 프로세스 시작해줘", "다음 단계 뭐야" 같은 요청에 사용. 업데이트 타겟(어드벤처·아레나·이벤트 던전·인피니트 타워 등)이 뭐든 흐름은 동일하다. 이 스킬 자체는 아무것도 계산·실행하지 않는다 — 언제 어느 하위 스킬을 어떤 입력으로 부르고, 어디서 반드시 사람이 확인·실행해야 하는지만 안내한다. 실제 백오피스 업로드·깃북 게시·디스코드 게시·메인넷 배포는 항상 사람이 한다.
 ---
 
 # 정규 운영 업데이트 오케스트레이션
@@ -56,7 +56,7 @@ description: 나인 크로니클 정규 운영 업데이트 전체 프로세스(
 | 단계 | 누가 | 스킬 | 산출물 |
 | --- | --- | --- | --- |
 | ① 기획서 전달 | **사람** | (없음) | 기획서 파일/텍스트 |
-| ② 데이터시트 작성 + 재확인 | 에이전트 검증 + **사람이 시트 작성** | `spec-datasheet-check` + `datasheet-validate` | assertions JSON, 검증 리포트 |
+| ② 데이터시트 작성 + 재확인 | 에이전트 지시서·검증 + **사람이 시트 입력** | `spec-to-datasheet` → `spec-datasheet-check` + `datasheet-validate` | 작업 지시서, 계획/assertions JSON, 검증 리포트 |
 | ③ 인터널(백오피스 스테이징) 배포 | 에이전트 게이트 + **사람이 직접 업로드** | `datasheet-release-gate` | 시트별 게이트 리포트 |
 | ④ QA 리뷰 | **사람(QA 담당자)**, 에이전트는 체크리스트만 | `qa-checklist` | 전/후 diff 체크리스트 |
 | ⑤ 피드백 반영 → 깃북 릴리즈 노트 | 에이전트 초안 + **사람이 게시** | (③④ 반복) → `release-notes` | 릴리즈 노트 초안 |
@@ -85,20 +85,34 @@ description: 나인 크로니클 정규 운영 업데이트 전체 프로세스(
 
 ### ② 데이터시트 작성 + 재확인 (에이전트의 핵심 구간)
 
-**빈 시트를 기획서 보고 채우는 작업 자체를 대신하는 도구는 아직 없다**(`spec-to-datasheet` 미착수).
-시트 작성은 사람이 하고, 에이전트는 **작성된 결과를 두 축으로 검증**한다.
+구글 시트에 값을 실제로 입력하는 건 사람이 한다(D4). 에이전트는 **입력 전에 지시서를 만들고,
+입력 후에 두 축으로 검증**한다.
 
-**(a) 기획서 대사** — 기획서에서 뽑은 수치를 assertions JSON으로 정리한 뒤 실제 CSV와 대조:
+**(a) 입력 작업 지시서** — 기획서에서 뽑은 계획 JSON을 현재 시트와 대조해 "무엇을 어떻게
+바꿔야 하는지"를 먼저 뽑는다:
+
+```bash
+bun run "$(git rev-parse --show-toplevel)/tools/9c/spec-to-datasheet.ts" --csv <시트.csv> --plan <plan.json> --sheet-name <시트명> --key-column Id
+```
+
+변경(CHANGE)·새 행 추가(NEW_ROW)·이미 반영됨(NO_CHANGE)으로 분류해주고, 새 행에 값이 안 정해진
+컬럼을 WARN으로 짚어준다. 컬럼명이 시트에 없으면(FATAL) 계획의 오타이거나 대상 시트를 잘못
+고른 것이니 **여기서 멈추고 확인**한다. 이 지시서를 사용자에게 보여주고 시트 입력을 요청한다.
+
+**(b) 기획서 대사** — 입력이 끝나면 **같은 계획 파일을 그대로** assertions로 넘겨 검증한다
+(형식이 동일해 변환 단계가 없다):
 
 ```bash
 bun run "$(git rev-parse --show-toplevel)/tools/9c/spec-datasheet-check.ts" --csv <시트.csv> --assertions <assertions.json> --sheet-name <시트명> --key-column Id --json > <시트>.speccheck.json
 ```
 
-assertions는 에이전트가 기획서를 읽고 만든다(`{sheet, id, column, expected, note}`). **수치가
-명시된 문장만 assertion으로 만든다** — "밸런스를 소폭 조정" 같은 모호한 문장은 assertion화하지
-말고 사용자에게 "이 항목은 구체적 수치가 없어 자동 대사가 안 됩니다"라고 알린다.
+계획/assertions는 에이전트가 기획서를 읽고 만든다(`{sheet, id, column, expected, note}` — (a)에
+쓴 `plan.json`을 그대로 넘기면 된다). **수치가 명시된 문장만 항목으로 만든다** — "밸런스를 소폭
+조정" 같은 모호한 문장은 지어내지 말고 사용자에게 "이 항목은 구체적 수치가 없어 자동 대사가 안
+됩니다"라고 알린다. 임의의 숫자를 넣으면 그 값이 시트에 입력되고 검증까지 같은 파일로 하므로
+**틀린 값이 "일치"로 통과해버린다.**
 
-**(b) 구조·이상 데이터 검증** — 시트(탭)마다 따로 실행:
+**(c) 구조·이상 데이터 검증** — 시트(탭)마다 따로 실행:
 
 ```bash
 bun run "$(git rev-parse --show-toplevel)/tools/9c/datasheet-validate.ts" --csv <시트.csv> --key-column Id --baseline-csv <직전회차.csv> --json > <시트>.structural.json
@@ -206,7 +220,7 @@ bun run "$(git rev-parse --show-toplevel)/tools/9c/release-guard.ts" --log-file 
 | 항목 | 상태 |
 | --- | --- |
 | ⑤⑥⑦의 실제 순서(깃북·디스코드가 배포 앞인지 뒤인지) | 미확인 — 담당자 설명과 릴리즈 순서 문서가 다르게 읽힘(위 ⑥ 순서 제약 참고). "데이터시트 메인넷 반영" vs "클라이언트 APV 릴리즈"가 다른 대상일 가능성 |
-| 빈 시트를 기획서 보고 채우는 작업(`spec-to-datasheet`) | 미착수 — 노션 페이지 Connections 공유 대기 |
+| `spec-to-datasheet`의 노션 연동(기획 문서 직접 읽기) | 미착수 — 지금 워크플로(기획서를 사람이 직접 전달)엔 불필요. 지시서 생성 자체는 2026-09-03에 구현됨 |
 | "무엇을 테스트해야 하는지"(시트별 기능 매핑) | 미착수 — lib9c 도메인 지식 필요 |
 | 시트 간 참조 ID·컬럼 타입 검증 | 미착수 — lib9c 스키마 매핑 필요 |
 | 정규 업데이트 디스코드 공지의 고정 템플릿 | 미착수 — 실제 과거 게시물 샘플 미확보 |
