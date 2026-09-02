@@ -46,7 +46,11 @@ macOS 터미널(zsh/bash)은 이 명령어들이 쓰는 문법(`$(...)`, 큰따�
 ### 2.0 처리 흐름 (사용자 설명, 2026-09-03)
 
 담당자가 실제로 겪는 정규 업데이트 운영은 이런 순서다 — 업데이트 타겟(어드벤처·아레나·
-이벤트 던전·인피니트 타워 등)이 뭐든 이 7단계는 공통이다.
+이벤트 던전·인피니트 타워 등)이 뭐든 이 7단계는 공통이다. **담당자는 명령어를 몰라도 된다** —
+Claude에게 말로 요청하면 [`regular-update` 에이전트](.claude/agents/regular-update.md)가
+받아서 진행한다. 실행 순서·사람 개입 지점(에이전트용)은
+[`regular-update-prep` 스킬](.claude/skills/regular-update-prep/SKILL.md) 참고 — 아레나의
+`arena-season-update` 에이전트 + `arena-season-prep` 스킬과 같은 2단 구조다.
 
 | # | 단계 | 담당 스킬 | 상태 |
 | --- | --- | --- | --- |
@@ -80,6 +84,7 @@ macOS 터미널(zsh/bash)은 이 명령어들이 쓰는 문법(`$(...)`, 큰따�
 
 | 스킬 | 역할 | 상태 |
 | --- | --- | --- |
+| [`regular-update-prep`](.claude/skills/regular-update-prep/SKILL.md) | 아래 스킬들로 7단계 전체 프로세스를 안내하는 오케스트레이션 가이드(계산·실행은 안 함) | 2026-09-03 신규, 완료 (가이드 전용) |
 | [`release-guard`](.claude/skills/release-guard/SKILL.md) | 깃북 릴리즈 노트 vs 메인넷 APV vs 인게임 공지판 일관성 대조 + `Event.json` 현재 값 스냅샷 | 부분 구현 — 일관성·헤드 대조 + Event.json 현재 값 스냅샷(`--event-log-file`, 2026-09-01 확인: 공개 CDN이 S3와 같은 오브젝트라 권한 불필요). 과거 버전 소급 조회만 S3 권한 대기(범위 좁아짐) |
 | [`datasheet-validate`](.claude/skills/datasheet-validate/SKILL.md) | 밸런스 시트 CSV 구조적 검증 + 회차 간 diff(1차 필수) | 부분 구현 — 중복 헤더·행별 컬럼 수·키 컬럼 공백·행 수 급감(v200450 실패 모드 3종 회귀 포함)·`--baseline-csv` 회차 diff(qa-checklist의 diffSheet 재사용, 미해결 B 중 diff 기준선 쪽은 lib9c git 이력 조사로 "별도 스냅샷"으로 판단 — 대상 브랜치·PR 타겟 쪽은 여전히 미결정). 시트 간 참조 ID·타입 검증만 lib9c 스키마 매핑 선행 필요로 미착수 |
 | [`spec-datasheet-check`](.claude/skills/spec-datasheet-check/SKILL.md) | 기획서(사람이 직접 전달) assertions ↔ 실제 CSV 값 대사 | 2026-09-03 신규, 부분 구현 — 값 대사(MISMATCH/ROW_NOT_FOUND/COLUMN_NOT_FOUND)만. assertions 자동 추출은 의도적으로 미착수(에이전트가 매번 판단) |
