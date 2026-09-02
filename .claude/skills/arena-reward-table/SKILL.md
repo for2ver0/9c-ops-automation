@@ -22,13 +22,14 @@ description: Nine Chronicles 아레나 시즌 상금 표를 계산하고 검증�
 | `arena-reward-sources.ts` | `tools/9c/lib/arena-reward-sources.ts` | 랭킹/스테이킹/용기패스 조회 어댑터 (API + CSV 폴백) |
 | `arena-network.ts` | `tools/9c/lib/arena-network.ts` | 네트워크별 호스트·planet-id 매핑 (스킴 2종, 혼동 주의) |
 | `arena-reward-png.ts` | `tools/9c/lib/arena-reward-png.ts` | SVG 빌드 + `@resvg/resvg-js`로 PNG 래스터화 (근사 재현) |
-| 골든 픽스처 | `tools/9c/fixtures/arena-reward-table.golden.json` | Odin S39 / Heimdall CS9, 라이브로 실측·교차검증됨 |
+| 골든 픽스처 | `tools/9c/fixtures/arena-reward-table.golden.json` | Odin S39 / Heimdall CS9. Heimdall CS9만 담당자 실측 스크린샷으로 배수 역산 확인됨 — Odin S39는 미검증(§1 참고) |
 | 회귀 검증기 | `tools/9c/fixtures/verify-arena-reward-table.ts` | CLI를 실제로 실행해 골든 픽스처와 대조 (`--live` 옵션으로 라이브 API까지 검증) |
 | 유닛 테스트 | `tools/9c/lib/*.test.ts` | `bun test`. 계산 로직 + SVG 빌더를 골든 픽스처로 검증 |
 
 의존성: `@resvg/resvg-js`(PNG 래스터화, 저장소 루트 `package.json`) — `bun install` 필요.
 
-실행: `bun test tools/9c/lib/` (31 pass) / `bun run tools/9c/fixtures/verify-arena-reward-table.ts [--live]`.
+실행: `bun test tools/9c/lib/` (205 pass, 12개 파일 — 다른 5개 스킬 테스트도 같은 디렉터리에 있어
+범위가 넓어짐) / `bun run tools/9c/fixtures/verify-arena-reward-table.ts [--live]`.
 
 ---
 
@@ -81,10 +82,10 @@ description: Nine Chronicles 아레나 시즌 상금 표를 계산하고 검증�
 이 스킬은 **이미 등록·진행 중이거나 완료된 시즌의 상금 표를 계산·검증**하는 것에만 적용된다. 아래
 중 하나라도 해당하면 이 스킬 범위 밖이다:
 
-- 새 시즌을 `ManageSeasons`에 등록하는 것 (→ `arena-season-preview`, 미착수)
-- 공지 문구 작성이나 디스코드 전송 (→ `arena-announce`, 미착수)
+- 새 시즌을 `ManageSeasons`에 등록하는 것 (→ `arena-season-preview`, 완료)
+- 공지 문구 작성이나 디스코드 전송 (→ `arena-announce`, 완료)
 - 실제 NCG 지급 서명·전송 (→ `arena-settlement-check` + 사람의 수동 실행, `arena-settlement-check`는
-  미착수)
+  부분 구현 — 상세는 README.md 상태 표 참고)
 - 상금 계산 로직 자체를 바꾸는 것 (예: 새로운 보너스 조건 추가) — 이건 `ArenaRewardService.cs` 코드
   변경이 필요한 별도 작업이지 이 스킬로 다룰 수 없다
 
@@ -221,7 +222,7 @@ CP+St3 하나만 썼다는 점 참고 — 그 검증 자체가 재검토 대상�
 
 | 항목 | 상태 |
 | --- | --- |
-| Odin S39 / Heimdall CS9 골든 픽스처 셀 값(10그룹×6열) 오차 없이 재현 | ✅ `bun test tools/9c/lib/arena-reward-calc.test.ts tools/9c/lib/arena-reward-png.test.ts` (36 pass, 419 assertions) |
+| Odin S39 / Heimdall CS9 골든 픽스처 셀 값(10그룹×6열) 오차 없이 재현 | ✅ `bun test tools/9c/lib/arena-reward-calc.test.ts tools/9c/lib/arena-reward-png.test.ts` (39 pass, 426 assertions) |
 | CLI가 라이브 API로 같은 두 시즌을 재현(시즌 메타·참가자 수) | ✅ `bun run tools/9c/fixtures/verify-arena-reward-table.ts --live` |
 | CSV 폴백(스테이킹+용기패스) 경로가 API와 동일한 결과를 냄 | ✅ 수동 검증 — Odin S39 rank1("Mazi")에 스테이킹 lv3+용기패스 CSV를 먹였더니 골든 픽스처의 CP+St3(14,000)와 정확히 일치 |
 | 인원/비율 불변식이 깨진 설정에서 FATAL로 잡음 | ✅ `arena-reward-calc.test.ts`의 "invariant checks catch broken configs" 스위트 |

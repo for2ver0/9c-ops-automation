@@ -122,8 +122,9 @@
    TOTAL      500 100%      500,000
 ```
 
-`maxPayoutAfterTruncation = 499,994`(= Σ playerCount×paid.CP+St3, 이 세션에서 재계산), `truncationResidual = 6`.
-기존(틀렸던) 값 `499,947`/`53`은 잘못된 percentages/couragePassMultiplier로 계산된 것이라 폐기.
+`maxPayoutAfterTruncation = 499,956`(= Σ playerCount×paid.CP+St3, `tools/9c/fixtures/arena-reward-table.golden.json`의
+heimdall-championship-9 `totals`와 일치), `truncationResidual = 44`.
+기존(틀렸던) 값 `499,947`/`53`, `499,994`/`6`은 잘못된 percentages/couragePassMultiplier 또는 재계산 오류로 나온 것이라 폐기.
 
 ⚠️ **basic 열이 "groupReward/players/(1+staking3+couragePass)" 공식의 floor와 정확히 안 맞는 그룹이
 있다** — 예: 3-5 그룹 `40,000/3/3.2 = 4166.67` → floor면 4,166인데 실측 이미지는 4,167. 이런 ±1 차이는

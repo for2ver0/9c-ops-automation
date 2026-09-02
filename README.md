@@ -63,6 +63,7 @@ macOS 터미널(zsh/bash)은 이 명령어들이 쓰는 문법(`$(...)`, 큰따�
 `tools/9c/qa-checklist.ts` + `tools/9c/lib/qa-checklist.ts`, `tools/9c/announce-fanout.ts` +
 `tools/9c/lib/announce-fanout.ts`, `tools/9c/release-notes.ts` + `tools/9c/lib/release-notes.ts`.
 CSV 파서(`tools/9c/lib/csv.ts`)는 datasheet-validate와 qa-checklist가 공유한다(순환 참조
-방지용 분리). release-guard는 실행 즉시 실제 프로덕션 상태(2026-08-30/31 기준, 인게임
-공지판이 깃북보다 2차수 뒤처진 상태)를 FATAL로 잡아낸다 — 조사 근거는
+방지용 분리). release-guard는 실행할 때마다 결과가 바뀌는 진단 도구다 — 2026-08-30/31
+조사 시점엔 실제 프로덕션 상태(인게임 공지판이 깃북보다 2차수 뒤처진 상태)를 FATAL로
+잡아냈다(그 시점의 스냅샷이지 항상 유효한 현재 상태가 아님) — 조사 근거는
 [`references/release-guard-investigation.md`](.claude/skills/release-guard/references/release-guard-investigation.md).

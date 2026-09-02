@@ -5,7 +5,8 @@
  *
  * 정규 업데이트 인게임 공지(TextNotice{,_KR,_JP}.json, release-guard가 이미 공개 읽기로
  * 검증한 것과 동일 소스)를 디스코드 초안으로 재포장하고, 언어별 불일치를 잡는다. §3 11단계
- * (휴장/이벤트 공지)는 Event.json 읽기 권한(⑧)이 없어 미착수.
+ * (휴장/이벤트 공지)는 읽기 권한 문제가 아니라(2026-09-01 정정) Event.json에 초안화할
+ * 문구 자체가 없어 미착수 — 상세는 SKILL.md §4 참고.
  *
  * Usage:
  *   bun run tools/9c/announce-fanout.ts [--json]

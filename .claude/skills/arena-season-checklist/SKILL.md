@@ -17,7 +17,7 @@ description: 아레나 시즌 준비 4개 스킬(arena-reward-table·arena-seaso
 | 유닛 테스트 | `tools/9c/lib/arena-season-checklist.test.ts` | 정규화·집계 로직만(오프라인) |
 | 회귀 검증기 | `tools/9c/fixtures/verify-arena-season-checklist.ts` | 4개 스킬을 실제로 실행해 --json 만들고 집계까지 라이브로 검증 |
 
-실행: `bun test tools/9c/lib/arena-season-checklist.test.ts` (10 pass) /
+실행: `bun test tools/9c/lib/arena-season-checklist.test.ts` (12 pass) /
 `bun run tools/9c/fixtures/verify-arena-season-checklist.ts` (라이브 필요).
 
 ---
