@@ -80,9 +80,9 @@ async function readLog(path: string | undefined): Promise<LogEntry[]> {
   const text = await Bun.file(path).text();
   return text
     .split("\n")
-    .map((l) => l.trim())
+    .map((l: string) => l.trim())
     .filter(Boolean)
-    .map((l) => JSON.parse(l) as LogEntry);
+    .map((l: string) => JSON.parse(l) as LogEntry);
 }
 
 async function appendLog(path: string | undefined, entry: LogEntry): Promise<void> {
@@ -102,9 +102,9 @@ async function readEventLog(path: string | undefined): Promise<EventJsonSnapshot
   const text = await Bun.file(path).text();
   return text
     .split("\n")
-    .map((l) => l.trim())
+    .map((l: string) => l.trim())
     .filter(Boolean)
-    .map((l) => JSON.parse(l) as EventJsonSnapshot);
+    .map((l: string) => JSON.parse(l) as EventJsonSnapshot);
 }
 
 async function appendEventLog(path: string | undefined, entry: EventJsonSnapshot): Promise<void> {

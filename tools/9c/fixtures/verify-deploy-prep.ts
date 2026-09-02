@@ -66,9 +66,9 @@ try {
   const text = await Bun.file(tmpPath).text();
   const log = text
     .split("\n")
-    .map((l) => l.trim())
+    .map((l: string) => l.trim())
     .filter(Boolean)
-    .map((l) => JSON.parse(l) as LatestJsonSnapshotEntry);
+    .map((l: string) => JSON.parse(l) as LatestJsonSnapshotEntry);
   const target = findRollbackTarget(log, 2);
   check("rollback round-trip finds the older distinct version", target?.version === 1, JSON.stringify(target));
 } finally {

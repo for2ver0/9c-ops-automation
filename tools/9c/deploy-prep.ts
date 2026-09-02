@@ -57,9 +57,9 @@ async function readLog(path: string | undefined): Promise<LatestJsonSnapshotEntr
   const text = await Bun.file(path).text();
   return text
     .split("\n")
-    .map((l) => l.trim())
+    .map((l: string) => l.trim())
     .filter(Boolean)
-    .map((l) => JSON.parse(l) as LatestJsonSnapshotEntry);
+    .map((l: string) => JSON.parse(l) as LatestJsonSnapshotEntry);
 }
 
 async function appendLog(path: string | undefined, entry: LatestJsonSnapshotEntry): Promise<void> {

@@ -63,7 +63,7 @@ describe("normalizeSettlementJson", () => {
     ];
     const section = normalizeSettlementJson(raw);
     expect(section.partial).toBe(true);
-    expect(section.checks.map((c) => c.level)).toEqual(["OK", "FATAL", "WARN", "WARN"]);
+    expect(section.checks?.map((c) => c.level)).toEqual(["OK", "FATAL", "WARN", "WARN"]);
   });
 
   test("throws if given a non-array", () => {
