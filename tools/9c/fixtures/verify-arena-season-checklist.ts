@@ -3,7 +3,7 @@
  * Regression check for arena-season-checklist — generates real --json output from all
  * four sibling skills (known-good inputs, same ones used in their own fixtures) into temp
  * files, then confirms the checklist aggregates them correctly: every section present,
- * every section OK (since the inputs are all known-clean), and the season-cache check
+ * every section OK except the expected WARNs listed in expectedWarns, and the season-cache check
  * runs without crashing (its result is live/variable so this only checks it produced
  * *a* result, not a specific level — the cache-lag WARN has been observed persisting for
  * this entire session, so asserting OK here would make this script flaky by design).
@@ -42,6 +42,12 @@ try {
     seasonCache: Record<string, { ok: boolean; level: string }>;
   };
 
+  /** 고정 입력이라 결정적으로 뜨는 WARN. 있어야 정상이고, 사라지면 검사 자체가
+   *  없어진 것이므로 그것도 실패로 본다. */
+  const expectedWarns: Record<string, string[]> = {
+    "arena-reward-table": ["rounding-boundary-risk"],
+  };
+
   const expectedSkills = ["arena-reward-table", "arena-season-preview", "arena-announce", "arena-settlement-check"];
   for (const skill of expectedSkills) {
     const section = summary.sections.find((s) => s.skill === skill);
@@ -55,13 +61,24 @@ try {
       console.log(`FAIL  ${skill}: checks is null (should have loaded from file)`);
       continue;
     }
-    const badLevels = (section.checks as Array<{ level: string }>).filter((c) => c.level !== "OK");
-    if (badLevels.length > 0) {
+    const checks = section.checks as Array<{ id: string; level: string }>;
+    const allowed = expectedWarns[skill] ?? [];
+    const bad = checks.filter((c) => c.level !== "OK" && !allowed.includes(c.id));
+    if (bad.length > 0) {
       failed++;
-      console.log(`FAIL  ${skill}: expected all-OK for known-clean inputs, got ${JSON.stringify(badLevels)}`);
+      console.log(`FAIL  ${skill}: 예상 못한 비-OK 항목 ${JSON.stringify(bad)}`);
       continue;
     }
-    console.log(`PASS  ${skill}: ${section.checks.length} checks, all OK${section.partial ? " (partial, as expected for arena-settlement-check)" : ""}`);
+    const missing = allowed.filter((id) => !checks.some((c) => c.id === id && c.level !== "OK"));
+    if (missing.length > 0) {
+      failed++;
+      console.log(`FAIL  ${skill}: 기대했던 WARN이 사라졌습니다 - ${missing.join(", ")}`);
+      continue;
+    }
+    console.log(
+      `PASS  ${skill}: ${checks.length} checks, ${allowed.length ? `기대 WARN ${allowed.length}건 외 전부 OK` : "all OK"}` +
+      `${section.partial ? " (partial, as expected for arena-settlement-check)" : ""}`
+    );
   }
 
   if (!("odin" in summary.seasonCache)) {
