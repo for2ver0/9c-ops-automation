@@ -82,9 +82,8 @@ description: 아레나 시즌 준비 전체 프로세스(상금 확정 → 상�
 사용자에게 `RankingPool`·배분 비율·배수 3종을 자연어로 물어본다(기본 배분 비율은 제안 가능).
 받으면 에이전트가 직접 실행:
 
-```
-tools/9c/arena-reward-table.ts --table-only --png <경로> --json --pool <값> \
-  --percentages <값> --players <값> --staking-lv2 <값> --staking-lv3 <값> --courage-pass <값>
+```bash
+bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-reward-table.ts" --table-only --png <경로> --json --pool <값> --percentages <값> --players <값> --staking-lv2 <값> --staking-lv3 <값> --courage-pass <값>
 ```
 
 결과 PNG를 사용자에게 보여주고(파일 경로 안내), 불변식 결과를 요약해서 전달한다. FATAL이 있으면
@@ -97,11 +96,8 @@ tools/9c/arena-reward-table.ts --table-only --png <경로> --json --pool <값> \
 네트워크·시즌 정보를 모르면 `arena-announce.ts --list`(또는 `arena-season-preview`가 참조하는
 라이브 `/seasons`)로 후보를 먼저 조회해 보여주고 고르게 한다. 확정되면:
 
-```
-tools/9c/arena-season-preview.ts --network <n> --season-group-id <값> --arena-type <값> \
-  --season-start-block <값> --round-interval 10800 --round-count <값> \
-  --required-medal-count <값> --total-prize <2단계 RankingPool과 동일값> \
-  --battle-policy-id <값> --refresh-policy-id <값> --reward-table-pool <같은 값>
+```bash
+bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-season-preview.ts" --network <n> --season-group-id <값> --arena-type <값> --season-start-block <값> --round-interval 10800 --round-count <값> --required-medal-count <값> --total-prize <2단계 RankingPool과 동일값> --battle-policy-id <값> --refresh-policy-id <값> --reward-table-pool <같은 값>
 ```
 
 대사 결과를 사람이 읽는 말로 요약(예: "직전 시즌과 잘 이어지고, 정책 ID도 정상 범위입니다").
@@ -115,9 +111,8 @@ FATAL이면(`seasonGroupId==0` 등) 무엇을 어디서 고쳐야 하는지(백�
 
 **등록이 실제로 반영된 뒤에만** 실행 가능(사람이 "등록했다"고 확인해준 뒤):
 
-```
-tools/9c/arena-announce.ts --odin-season-group-id <값> --odin-arena-type <값> \
-  --heimdall-season-group-id <값> --heimdall-arena-type <값>
+```bash
+bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-announce.ts" --odin-season-group-id <값> --odin-arena-type <값> --heimdall-season-group-id <값> --heimdall-arena-type <값>
 ```
 
 FATAL이면(실제로 겪은 사례: `seasonGroupId=0`) 초안 자체를 안 보여주고, 등록 데이터를 백오피스에서
@@ -131,8 +126,8 @@ FATAL이면(실제로 겪은 사례: `seasonGroupId=0`) 초안 자체를 안 보
 
 사용자가 "지금 상태 어때?"라고 물으면:
 
-```
-tools/9c/arena-season-checklist.ts --check-cache odin,heimdall
+```bash
+bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-season-checklist.ts" --check-cache "odin,heimdall"
 ```
 
 캐시가 죽었으면(FATAL, 503) 즉시 알린다. 뒤처짐(WARN)은 **이 환경에서 상시로 관측되는 상태**라고
@@ -142,10 +137,8 @@ tools/9c/arena-season-checklist.ts --check-cache odin,heimdall
 
 시즌이 끝났으면 라이브 모드로 최종 표를 재생성:
 
-```
-tools/9c/arena-reward-table.ts --network <n> --season-type <값> --season-group-id <값> \
-  --pool <값> --percentages <값> --players <값> --staking-lv2 <값> --staking-lv3 <값> \
-  --courage-pass <값> --courage-pass-csv <용기패스 CSV 경로> --png <경로> --json
+```bash
+bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-reward-table.ts" --network <n> --season-type <값> --season-group-id <값> --pool <값> --percentages <값> --players <값> --staking-lv2 <값> --staking-lv3 <값> --courage-pass <값> --courage-pass-csv <용기패스 CSV 경로> --png <경로> --json
 ```
 
 `skipped-ranks`/`staking-match-failures`/`courage-pass-premium-100` WARN이 있으면 반드시
@@ -156,8 +149,8 @@ tools/9c/arena-reward-table.ts --network <n> --season-type <값> --season-group-
 
 txId를 받으면:
 
-```
-tools/9c/arena-settlement-check.ts --network <n> --tx <txId> --log-file <경로>
+```bash
+bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-settlement-check.ts" --network <n> --tx <txId> --log-file <경로>
 ```
 
 ⚠️ 유저별 실지급이 계산과 정확히 일치하는지는 아직 대조 못 한다(대조할 정본 데이터가 시스템에

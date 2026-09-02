@@ -147,7 +147,7 @@ FATAL이 하나라도 있으면 exit 1. `--log-file`을 주면 실행할 때마�
 | 매니페스트 레포는 `planetarium/9c-infra`(설계 문서엔 레포명이 없었음) | 라이브 프로빙(`9c-k8s-config`는 404, `9c-infra`는 200) |
 | `general.yaml`엔 `appProtocolVersion` 키가 없음 | 라이브로 확인, 설계 문서 주장과 일치 |
 | 설계 문서가 "LiveAssets"라 부른 레포의 정식 이름은 `planetarium/NineChronicles.LiveAssets`(공개) | 라이브 프로빙(`docs/9c-update-automation-self-check.md` 참고) — `TextNotice*.json`은 git 관리되지만 `Event.json`은 없음(교차검증) |
-| "2026-07-21·08-25 2회 연속 미갱신"이 **지금도 실제로 재현됨**(깃북 v200470, 공지판 v200450) | 이 세션, `release-guard.ts` 실행 결과 FATAL로 그대로 잡힘 — 픽스처 아님 |
+| "2026-07-21·08-25 2회 연속 미갱신"이 **2026-08-30/31 조사 시점에 실제로 재현됨**(깃북 v200470, 공지판 v200450) | 이 세션, `release-guard.ts` 실행 결과 FATAL로 그대로 잡힘 — 픽스처 아님. release-guard는 실행할 때마다 결과가 바뀌는 진단 도구이므로 이 관측은 그 시점의 스냅샷이지 항상 유효한 현재 상태가 아니다 — 최신 상태는 직접 실행해 확인할 것(§1 참고) |
 | Event.json이 S3(9c-assets)와 같은 오브젝트를 인증 없는 공개 CDN으로도 서빙(`x-amz-version-id` 응답 포함 — 버킷 versioning 켜짐) | 2026-09-01, 담당자 제보 + 이 세션이 직접 재현(curl로 HTTP 200, 4201바이트, 버전 헤더 확인) |
 
 ## 6. 아직 해소되지 않은 것

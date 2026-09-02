@@ -10,6 +10,7 @@
 
 | 순위 | 스킬 | 역할 | 상태 |
 | --- | --- | --- | --- |
+| — | [`arena-season-prep`](.claude/skills/arena-season-prep/SKILL.md) | 아래 5개 스킬 전체 프로세스 오케스트레이션 가이드(계산·실행은 안 함) | 완료 (가이드 전용) |
 | 1 | [`arena-reward-table`](.claude/skills/arena-reward-table/SKILL.md) | 상금 표 계산 + PNG + 불변식 검증 | 실측 대조 대기 (Odin S39 골든 픽스처 미검증) |
 | 2 | [`arena-season-preview`](.claude/skills/arena-season-preview/SKILL.md) | 시즌 등록 전 블록↔날짜 프리뷰 + 9개 입력 대사 | 완료 |
 | 3 | [`arena-announce`](.claude/skills/arena-announce/SKILL.md) | 디스코드 공지 초안 생성 | 완료 |

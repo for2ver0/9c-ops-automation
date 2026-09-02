@@ -59,11 +59,12 @@ description: Nine Chronicles 아레나 시즌 상금 표를 계산하고 검증�
     6. 백엔드는 인원 합(500)·비율 합(100%) 불변식을 **검증하지 않는다.** 어긋난 설정을 넣어도 그대로
        계산된다 — 이 스킬이 대신 잡는다.
 - **범위 밖**: 시즌 등록(`ManageSeasons` 9개 입력), NCG 지급 서명·전송, 디스코드 공지는 이 스킬이 하지
-  않는다. PNG는 만든다(스펙 문서 §7-2 레이아웃 근사 재현) — 단 **"티켓 정보" 블록은 뺐다.** 시즌
-  타입별 문구 틀 확보는 `arena-announce`(3순위)의 값 차단 항목이라, 문구 없이 숫자만 넣으면 완성된
-  것처럼 보이지만 실제로는 틀린 레이아웃이 된다. "블록 정보"(시작/종료 블록)는 넣되 **추정 날짜는
-  안 넣는다** — 블록↔시간 환산은 `arena-season-preview`가 만들 공용 모듈(§6-3) 소관이라 여기서
-  중복 구현하지 않는다.
+  않는다. PNG는 만든다(스펙 문서 §7-2 레이아웃 근사 재현) — "블록 정보"(시작/종료 블록 + 추정 날짜,
+  `arena-season-preview`의 공용 블록타임 모듈 `arena-block-time.ts` 사용)와 **"티켓 정보" 블록
+  둘 다 포함한다.** 티켓 정보는 시즌 타입별로 입력이 다르다 — SEASON은 `--ticket-total`/
+  `--ticket-session`, CHAMPIONSHIP은 `--required-medal-count`/`--round-count`/`--round-interval`
+  (아래 표 참고). 어느 쪽이든 **숫자를 여기서 만들어내지 않는다** — 값을 안 주면 "Ticket
+  Information" 제목만 나오고 내용 줄은 비워둔다(§1의 "도구 기본값 정책"과 같은 원칙).
 - **시작 전 필수 확인**: 이 스킬은 몇 가지 미해결 항목 위에 있다. 맨 아래 "아직 해소되지 않은 것"을
   먼저 본다.
 
@@ -116,6 +117,18 @@ couragePassMultiplier는 시즌·타입마다 다를 수 있음이 그 실측으
 6개 키를 담은 JSON) — 다만 이것도 "명시 입력"이지 조용한 기본값이 아니다: 파일이 없으면 그대로
 중단된다.
 
+### PNG 전용 입력 (선택) — "티켓 정보" 블록
+
+`--png <경로>`를 줄 때만 의미가 있다. 위 6개와 마찬가지로 조용히 채우지 않는다 — 안 주면 "Ticket
+Information" 제목만 그리고 내용 줄은 비운다.
+
+| 시즌 타입 | CLI 플래그 | 비고 |
+| --- | --- | --- |
+| SEASON | `--ticket-total`, `--ticket-session` | 시즌 전체 구매 가능 티켓 수 / 세션(리프레시)당 추가 구매 가능 수 |
+| CHAMPIONSHIP | `--required-medal-count`, `--round-count`, `--round-interval` | 자격에 필요한 메달 수 / 라운드 수 / 라운드 간격(블록) — 셋 다 있어야 렌더링됨, 일부만 주면 무시하고 경고만 출력 |
+
+`--season-type`을 CHAMPIONSHIP으로 주면 CHAMPIONSHIP 쪽 플래그만, 그 외엔 SEASON 쪽 플래그만 읽는다.
+
 ## 2. 데이터 소스 — 랭킹 · 스테이킹 · 용기패스
 
 세 데이터 모두 **API 기본 + CSV 폴백** 하이브리드다(설계 논의는
@@ -163,8 +176,11 @@ bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-reward-table.ts" --tabl
 # 실제 유저별 지급액까지 (라이브 랭킹+스테이킹, 용기패스는 CSV)
 bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-reward-table.ts" --network odin --season-type SEASON --season-group-id 39 --pool 400000 --percentages "7,8,7,9,12,18,18,12,6,3" --players "2,3,4,6,10,25,37,38,125,250" --staking-lv2 0.5 --staking-lv3 1.0 --courage-pass 1.2 --courage-pass-csv ./courage-pass.csv
 
-# PNG까지 (다른 플래그와 함께 --png <경로>만 추가하면 됨)
+# PNG까지 (다른 플래그와 함께 --png <경로>만 추가하면 됨. 티켓 정보 없이 낸 예시 — 아래 참고)
 bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-reward-table.ts" --table-only --pool 400000 --percentages "7,8,7,9,12,18,18,12,6,3" --players "2,3,4,6,10,25,37,38,125,250" --staking-lv2 0.5 --staking-lv3 1.0 --courage-pass 1.2 --png ./odin-s39-rewards.png
+
+# PNG + 티켓 정보까지 (SEASON 타입 예시 — CHAMPIONSHIP은 --required-medal-count/--round-count/--round-interval 사용)
+bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-reward-table.ts" --table-only --pool 400000 --percentages "7,8,7,9,12,18,18,12,6,3" --players "2,3,4,6,10,25,37,38,125,250" --staking-lv2 0.5 --staking-lv3 1.0 --courage-pass 1.2 --png ./odin-s39-rewards.png --ticket-total 24 --ticket-session 4
 ```
 
 `--json` 없이 실행하면 사람이 읽기 좋은 표 + 불변식 리포트를 콘솔에 출력한다. 결과의 `title`은
@@ -224,9 +240,9 @@ CP+St3 하나만 썼다는 점 참고 — 그 검증 자체가 재검토 대상�
 | --- | --- |
 | Odin S39 / Heimdall CS9 골든 픽스처 셀 값(10그룹×6열) 오차 없이 재현 | ✅ `bun test tools/9c/lib/arena-reward-calc.test.ts tools/9c/lib/arena-reward-png.test.ts` (39 pass, 426 assertions) |
 | CLI가 라이브 API로 같은 두 시즌을 재현(시즌 메타·참가자 수) | ✅ `bun run tools/9c/fixtures/verify-arena-reward-table.ts --live` |
-| CSV 폴백(스테이킹+용기패스) 경로가 API와 동일한 결과를 냄 | ✅ 수동 검증 — Odin S39 rank1("Mazi")에 스테이킹 lv3+용기패스 CSV를 먹였더니 골든 픽스처의 CP+St3(14,000)와 정확히 일치 |
+| CSV 폴백(스테이킹+용기패스) 경로가 API와 동일한 결과를 냄 | ⚠️ 수동 검증(부분) — Odin S39 rank1("Mazi")에 스테이킹 lv3+용기패스 CSV를 먹였더니 골든 픽스처의 CP+St3(14,000)와 정확히 일치. **다만 아래 §4-1 "검증 함정"대로 CP+St3 열은 배수 값과 무관하게 항상 같은 값이 나온다** — 이 결과는 CSV 매칭·파싱 경로 자체는 검증하지만, `couragePassMultiplier`가 그 경로로 올바르게 전달됐는지는 증명하지 못한다. Basic 열이나 단일 보너스 열(CP만)로 재검증 필요 |
 | 인원/비율 불변식이 깨진 설정에서 FATAL로 잡음 | ✅ `arena-reward-calc.test.ts`의 "invariant checks catch broken configs" 스위트 |
-| PNG 렌더링 (스펙 §7-2 레이아웃 근사 재현) | ✅ `arena-reward-png.ts` — 골든 픽스처 두 시즌 모두 육안 확인(제목·10그룹·합계 행 전부 일치). 추정 날짜는 `arena-season-preview`의 공용 블록타임 모듈(`arena-block-time.ts`)이 생긴 뒤 연결 완료(2026-08-30) — Odin S39로 라이브 재생성해 실제 백테스트 값(§`arena-season-preview` 참고, 시작 08:48:16 UTC·종료 07:13:56 UTC)과 마진 이내 일치 확인. **티켓 정보 블록만 의도적으로 계속 제외**(스코프 노트 위 참고 — `arena-announce` 조사로 애초에 공지에도 안 들어간다는 게 확인돼 계속 제외가 맞는 결정으로 굳어짐) |
+| PNG 렌더링 (스펙 §7-2 레이아웃 근사 재현) | ✅ `arena-reward-png.ts` — 골든 픽스처 두 시즌 모두 육안 확인(제목·10그룹·합계 행 전부 일치). 추정 날짜는 `arena-season-preview`의 공용 블록타임 모듈(`arena-block-time.ts`)이 생긴 뒤 연결 완료(2026-08-30) — Odin S39로 라이브 재생성해 실제 백테스트 값(§`arena-season-preview` 참고, 시작 08:48:16 UTC·종료 07:13:56 UTC)과 마진 이내 일치 확인. **티켓 정보 블록도 구현 완료**(`--ticket-total`/`--ticket-session`/`--required-medal-count`/`--round-count`/`--round-interval`, 위 "PNG 전용 입력" 참고) — `arena-reward-png.test.ts`가 두 시즌 타입 문구를 각각 검증 |
 | 용기패스 API(JWT) 실사용 | ❌ 미해결 — 시크릿 미보유, CSV 폴백만 실사용 가능 |
 
 ---
@@ -261,7 +277,7 @@ CP+St3 하나만 썼다는 점 참고 — 그 검증 자체가 재검토 대상�
 | 항목 | 상태 | 필요한 것 |
 | --- | --- | --- |
 | 용기패스 API 실사용 | 시크릿 미보유 | `NC_MAINNET_SEASONPASS_JWT_KEY` 별도 전달 — 받으면 `fetchCouragePassEntries`의 스텁만 채우면 됨(호출 형태는 이미 정의돼 있음) |
-| PNG의 "티켓 정보" 블록 | 의도적으로 미포함(스코프 노트, §2 위 참고) | `arena-announce`가 시즌 타입별 문구 틀을 확보하면 그때 같이 재검토 |
+| ~~PNG의 "티켓 정보" 블록~~ | ✅ **해소됨** — SEASON/CHAMPIONSHIP 문구 틀 둘 다 구현(`--ticket-total`/`--ticket-session`, `--required-medal-count`/`--round-count`/`--round-interval`, 위 "PNG 전용 입력" 참고) | — |
 | ~~PNG의 추정 날짜(블록→시간 환산)~~ | ✅ **해소됨** (2026-08-30) — `arena-block-time.ts` 연결 완료, `--png` 사용 시 네트워크가 지정돼 있으면 자동으로 날짜 라인 추가 | — |
 | PNG가 실제 백오피스 산출물과 시각적으로 얼마나 비슷한지 | 미확인 — 이 세션은 스펙 문서 §7-2의 텍스트 설명만 근거로 만듦, 실제 샘플 PNG(Heimdall CS9·Odin S39)를 직접 보고 대조한 적 없음 | 실물 샘플과 나란히 놓고 비교 |
 | `/leaderboard/completed`의 캐시-지연 400이 정말 일시적인지 | 추정(재시도로 통과하는 사례를 아직 직접 관측 못함 — 오래된 시즌에서 우회 확인만 함) | 시즌 종료 직후 실제로 이 스킬을 돌려서 재시도가 통과하는지 관측 |
