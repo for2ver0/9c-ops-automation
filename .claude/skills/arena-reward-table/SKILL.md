@@ -5,9 +5,12 @@ description: Nine Chronicles 아레나 시즌 상금 표를 계산하고 검증�
 
 # 아레나 상금 표 계산
 
-> 이 스킬은 2026-08-30 세션에서 처음 SKILL.md로 작성됐다. 5개 스킬 중 1순위(`arena-reward-table`)만
-> 구현했다 — 나머지(`arena-season-preview`/`arena-announce`/`arena-settlement-check`/
-> `arena-season-checklist`)는 설계·값 차단 해소를 기다리는 미착수 상태다. 상위 컨텍스트는
+> 이 스킬은 2026-08-30 세션에서 처음 SKILL.md로 작성됐다 — 그 시점엔 5개 스킬 중 1순위
+> (`arena-reward-table`)만 구현돼 있었다. **이후 세션들에서 나머지 4개
+> (`arena-season-preview`/`arena-announce`/`arena-settlement-check`/`arena-season-checklist`)도
+> 전부 착수·구현됐다**(각 SKILL.md의 "완료 판정"/"수용 기준" 섹션 참고, 저장소 루트
+> `README.md`의 상태 표가 최신 기준). 이 스킬 자체는 2026-09-02 기준 "실측 대조 대기"
+> (Odin S39 골든 픽스처 미검증, `README.md` 참고) 상태다. 상위 컨텍스트는
 > `docs/arena-season-prep-spec.md`(저장소 루트 기준)를 참고.
 
 ## 도구 현황 (2026-08 기준)
