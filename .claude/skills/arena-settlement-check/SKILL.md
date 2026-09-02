@@ -48,11 +48,10 @@ txId를 주면 Mimir로 온체인 상태를 조회해서 `SUCCESS`/`FAILURE`/`ST
 
 ```bash
 # 단건 조회
-bun run tools/9c/arena-settlement-check.ts --network odin --tx <txId>
+bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-settlement-check.ts" --network odin --tx <txId>
 
 # 여러 건(쉼표 구분) + 로컬 감사 로그
-bun run tools/9c/arena-settlement-check.ts --network odin \
-  --tx <txId1>,<txId2> --log-file ./settlement-log.jsonl
+bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-settlement-check.ts" --network odin --tx "<txId1>,<txId2>" --log-file ./settlement-log.jsonl
 ```
 
 찾지 못한 tx는 크래시하지 않고 `[?]` 표시로 나머지 결과와 함께 출력된다(배치 중 하나가 아직

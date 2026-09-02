@@ -86,21 +86,19 @@ description: Nine Chronicles 밸런스 구글 시트를 CSV로 내보낸 결과�
 
 ```bash
 # 로컬 CSV 파일 검증
-bun run tools/9c/datasheet-validate.ts --csv ./MaterialItemSheet.csv --key-column Id
+bun run "$(git rev-parse --show-toplevel)/tools/9c/datasheet-validate.ts" --csv ./MaterialItemSheet.csv --key-column Id
 
 # 구글 시트 CSV export URL 직접 검증 (공개 시트만 — 인증 불필요)
-bun run tools/9c/datasheet-validate.ts \
-  --url "https://docs.google.com/spreadsheets/d/1Di903g3_mxdDd6gZuNhczE4MXwFI-lWnOqzuVPbGM7k/gviz/tq?tqx=out:csv&sheet=MaterialItemSheet" \
-  --key-column Id
+bun run "$(git rev-parse --show-toplevel)/tools/9c/datasheet-validate.ts" --url "https://docs.google.com/spreadsheets/d/1Di903g3_mxdDd6gZuNhczE4MXwFI-lWnOqzuVPbGM7k/gviz/tq?tqx=out:csv&sheet=MaterialItemSheet" --key-column Id
 
 # 직전 실행의 행 수만 기준값으로 넘겨 급감 검출 (전체 CSV를 안 남겨뒀을 때)
-bun run tools/9c/datasheet-validate.ts --csv ./MaterialItemSheet.csv --key-column Id --baseline-rows 421
+bun run "$(git rev-parse --show-toplevel)/tools/9c/datasheet-validate.ts" --csv ./MaterialItemSheet.csv --key-column Id --baseline-rows 421
 
 # 직전 회차 CSV 전체를 넘겨 회차 간 diff까지 확인 (행 수 급감 검사도 여기서 자동으로 값을 뽑아 씀)
-bun run tools/9c/datasheet-validate.ts --csv ./MaterialItemSheet.csv --key-column Id --baseline-csv ./MaterialItemSheet.prev.csv
+bun run "$(git rev-parse --show-toplevel)/tools/9c/datasheet-validate.ts" --csv ./MaterialItemSheet.csv --key-column Id --baseline-csv ./MaterialItemSheet.prev.csv
 
 # JSON으로
-bun run tools/9c/datasheet-validate.ts --csv ./MaterialItemSheet.csv --json
+bun run "$(git rev-parse --show-toplevel)/tools/9c/datasheet-validate.ts" --csv ./MaterialItemSheet.csv --json
 ```
 
 FATAL이 하나라도 있으면 exit 1. 시트 탭마다(=lib9c TableCSV 파일마다) 따로 실행한다 — 이 CLI는

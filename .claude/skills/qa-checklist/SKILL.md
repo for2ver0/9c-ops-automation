@@ -61,14 +61,10 @@ N-1)" 검사에도 그대로 재사용된다(`datasheet-validate.ts`가 이 파�
 ## 2. 실행
 
 ```bash
-bun run tools/9c/qa-checklist.ts \
-  --sheet-name MaterialItemSheet \
-  --before ./MaterialItemSheet.old.csv \
-  --after ./MaterialItemSheet.new.csv \
-  --key-column Id
+bun run "$(git rev-parse --show-toplevel)/tools/9c/qa-checklist.ts" --sheet-name MaterialItemSheet --before ./MaterialItemSheet.old.csv --after ./MaterialItemSheet.new.csv --key-column Id
 
 # JSON으로 (전체 변경 목록 확인용 — 사람이 읽는 출력은 20건 넘으면 샘플링됨)
-bun run tools/9c/qa-checklist.ts --sheet-name MaterialItemSheet --before old.csv --after new.csv --key-column Id --json
+bun run "$(git rev-parse --show-toplevel)/tools/9c/qa-checklist.ts" --sheet-name MaterialItemSheet --before old.csv --after new.csv --key-column Id --json
 ```
 
 시트 탭(=CSV 파일)마다 따로 실행한다 — `datasheet-validate`와 동일하게 한 번에 한 쌍만

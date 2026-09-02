@@ -85,13 +85,13 @@ description: 나인 크로니클 정규 업데이트 릴리즈가 깃북 릴리�
 
 ```bash
 # 1회성 확인
-bun run tools/9c/release-guard.ts
+bun run "$(git rev-parse --show-toplevel)/tools/9c/release-guard.ts"
 
 # 24시간 유예 판단 + Event.json 변경 이력을 남기며 실행 (권장 — 주기 실행이면 항상 이 옵션들)
-bun run tools/9c/release-guard.ts --log-file ./release-guard-log.jsonl --event-log-file ./event-json-log.jsonl
+bun run "$(git rev-parse --show-toplevel)/tools/9c/release-guard.ts" --log-file ./release-guard-log.jsonl --event-log-file ./event-json-log.jsonl
 
 # JSON으로
-bun run tools/9c/release-guard.ts --log-file ./release-guard-log.jsonl --event-log-file ./event-json-log.jsonl --json
+bun run "$(git rev-parse --show-toplevel)/tools/9c/release-guard.ts" --log-file ./release-guard-log.jsonl --event-log-file ./event-json-log.jsonl --json
 ```
 
 FATAL이 하나라도 있으면 exit 1. `--log-file`을 주면 실행할 때마다 한 줄(JSONL)을 append한다

@@ -65,13 +65,13 @@ description: 나인 크로니클 메인넷 배포(월간 정규 업데이트) �
 
 ```bash
 # 1회성 확인 (스냅샷 기록 없이)
-bun run tools/9c/deploy-prep.ts
+bun run "$(git rev-parse --show-toplevel)/tools/9c/deploy-prep.ts"
 
 # 롤백 스냅샷을 남기며 실행 (권장 — 배포 전후로 항상 이 옵션)
-bun run tools/9c/deploy-prep.ts --snapshot-log ./deploy-prep-log.jsonl
+bun run "$(git rev-parse --show-toplevel)/tools/9c/deploy-prep.ts" --snapshot-log ./deploy-prep-log.jsonl
 
 # JSON으로
-bun run tools/9c/deploy-prep.ts --snapshot-log ./deploy-prep-log.jsonl --json
+bun run "$(git rev-parse --show-toplevel)/tools/9c/deploy-prep.ts" --snapshot-log ./deploy-prep-log.jsonl --json
 ```
 
 FATAL(매니페스트가 깃북보다 뒤처짐 = APV 결번 의심)이 있으면 exit 1. `--snapshot-log`를

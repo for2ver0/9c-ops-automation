@@ -154,22 +154,13 @@ thor`는 즉시 명확한 에러로 거부되지, 조용히 빈 결과를 내지
 
 ```bash
 # 표만 (오프라인, 라이브 데이터 불필요)
-bun run tools/9c/arena-reward-table.ts --table-only --json \
-  --pool 400000 --percentages 7,8,7,9,12,18,18,12,6,3 --players 2,3,4,6,10,25,37,38,125,250 \
-  --staking-lv2 0.5 --staking-lv3 1.0 --courage-pass 1.2
+bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-reward-table.ts" --table-only --json --pool 400000 --percentages "7,8,7,9,12,18,18,12,6,3" --players "2,3,4,6,10,25,37,38,125,250" --staking-lv2 0.5 --staking-lv3 1.0 --courage-pass 1.2
 
 # 실제 유저별 지급액까지 (라이브 랭킹+스테이킹, 용기패스는 CSV)
-bun run tools/9c/arena-reward-table.ts \
-  --network odin --season-type SEASON --season-group-id 39 \
-  --pool 400000 --percentages 7,8,7,9,12,18,18,12,6,3 --players 2,3,4,6,10,25,37,38,125,250 \
-  --staking-lv2 0.5 --staking-lv3 1.0 --courage-pass 1.2 \
-  --courage-pass-csv ./courage-pass.csv
+bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-reward-table.ts" --network odin --season-type SEASON --season-group-id 39 --pool 400000 --percentages "7,8,7,9,12,18,18,12,6,3" --players "2,3,4,6,10,25,37,38,125,250" --staking-lv2 0.5 --staking-lv3 1.0 --courage-pass 1.2 --courage-pass-csv ./courage-pass.csv
 
 # PNG까지 (다른 플래그와 함께 --png <경로>만 추가하면 됨)
-bun run tools/9c/arena-reward-table.ts --table-only \
-  --pool 400000 --percentages 7,8,7,9,12,18,18,12,6,3 --players 2,3,4,6,10,25,37,38,125,250 \
-  --staking-lv2 0.5 --staking-lv3 1.0 --courage-pass 1.2 \
-  --png ./odin-s39-rewards.png
+bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-reward-table.ts" --table-only --pool 400000 --percentages "7,8,7,9,12,18,18,12,6,3" --players "2,3,4,6,10,25,37,38,125,250" --staking-lv2 0.5 --staking-lv3 1.0 --courage-pass 1.2 --png ./odin-s39-rewards.png
 ```
 
 `--json` 없이 실행하면 사람이 읽기 좋은 표 + 불변식 리포트를 콘솔에 출력한다. 결과의 `title`은

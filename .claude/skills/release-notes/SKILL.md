@@ -76,10 +76,10 @@ description: 나인 크로니클 정규 업데이트 릴리즈 노트 초안을 
 # --input 파일 형식 (JSON 배열)
 # [{ "category": "신규 콘텐츠", "items": ["신규 스테이지 501-510 추가"] }, ...]
 
-bun run tools/9c/release-notes.ts --apv 200490 --input ./release-note-sections.json
+bun run "$(git rev-parse --show-toplevel)/tools/9c/release-notes.ts" --apv 200490 --input ./release-note-sections.json
 
 # JSON으로
-bun run tools/9c/release-notes.ts --apv 200490 --input ./release-note-sections.json --json
+bun run "$(git rev-parse --show-toplevel)/tools/9c/release-notes.ts" --apv 200490 --input ./release-note-sections.json --json
 ```
 
 FATAL(이미 게시된 버전 재사용, 섹션 없음)이 있으면 exit 1이고, 사람이 읽는 출력에서는

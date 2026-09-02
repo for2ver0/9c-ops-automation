@@ -43,16 +43,13 @@ odin,heimdall`로 `/cached-block-info`(시즌 캐시) 읽기 점검을 곁들일
 
 ```bash
 # 각 스킬을 먼저 --json으로 실행해 파일로 저장
-bun run tools/9c/arena-reward-table.ts --table-only --json ... > reward.json
-bun run tools/9c/arena-season-preview.ts ... --json > preview.json
-bun run tools/9c/arena-announce.ts ... --json > announce.json
-bun run tools/9c/arena-settlement-check.ts --network odin --tx <txId> --json > settlement.json
+bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-reward-table.ts" --table-only --json ... > reward.json
+bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-season-preview.ts" ... --json > preview.json
+bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-announce.ts" ... --json > announce.json
+bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-settlement-check.ts" --network odin --tx <txId> --json > settlement.json
 
 # 집계
-bun run tools/9c/arena-season-checklist.ts \
-  --reward-table-json reward.json --season-preview-json preview.json \
-  --announce-json announce.json --settlement-json settlement.json \
-  --check-cache odin,heimdall
+bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-season-checklist.ts" --reward-table-json reward.json --season-preview-json preview.json --announce-json announce.json --settlement-json settlement.json --check-cache "odin,heimdall"
 ```
 
 네 개 다 안 줘도 된다 — 준 것만 집계하고 나머지는 "미실행"으로 표시한다. **미실행은 OK로 치지

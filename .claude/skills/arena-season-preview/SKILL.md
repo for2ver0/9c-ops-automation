@@ -103,21 +103,14 @@ Total Prize와 직접 대사(§6-2 "Total Prize ↔ RankingPool"). 안 주면 �
 
 ```bash
 # 기본 모드 — 시작 블록이 이미 정해진 경우 (보통 프리필값 그대로)
-bun run tools/9c/arena-season-preview.ts --network odin --season-group-id 46 --arena-type SEASON \
-  --season-start-block 20265224 --round-interval 10800 --round-count 14 \
-  --required-medal-count 0 --total-prize 400000 --battle-policy-id 4 --refresh-policy-id 4
+bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-season-preview.ts" --network odin --season-group-id 46 --arena-type SEASON --season-start-block 20265224 --round-interval 10800 --round-count 14 --required-medal-count 0 --total-prize 400000 --battle-policy-id 4 --refresh-policy-id 4
 
 # 보조 모드 — 날짜부터 정하고 블록을 역산하는 경우
-bun run tools/9c/arena-season-preview.ts --network odin --season-group-id 46 --arena-type SEASON \
-  --season-start-date 2026-11-09T00:00:00Z --round-interval 10800 --round-count 14 \
-  --required-medal-count 0 --total-prize 400000 --battle-policy-id 4 --refresh-policy-id 4
+bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-season-preview.ts" --network odin --season-group-id 46 --arena-type SEASON --season-start-date 2026-11-09T00:00:00Z --round-interval 10800 --round-count 14 --required-medal-count 0 --total-prize 400000 --battle-policy-id 4 --refresh-policy-id 4
 
 # 백테스트 — 이미 끝난 시즌의 9개 입력으로, 예측했던 종료 날짜가 실제 Mimir 기록과 얼마나
 # 차이 나는지 검증 (날짜 추정 정확도를 스스로 재확인하고 싶을 때)
-bun run tools/9c/arena-season-preview.ts --network odin --season-group-id 39 --arena-type SEASON \
-  --season-start-block 19260824 --round-interval 10800 --round-count 14 \
-  --required-medal-count 0 --total-prize 400000 --battle-policy-id 4 --refresh-policy-id 4 \
-  --verify-season
+bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-season-preview.ts" --network odin --season-group-id 39 --arena-type SEASON --season-start-block 19260824 --round-interval 10800 --round-count 14 --required-medal-count 0 --total-prize 400000 --battle-policy-id 4 --refresh-policy-id 4 --verify-season
 ```
 
 ### 3-1. `arena-reward-table`와 이어 쓰는 실제 순서
@@ -131,10 +124,7 @@ bun run tools/9c/arena-season-preview.ts --network odin --season-group-id 39 --a
    먼저 일어난다는 뜻).
 2. **그 `RankingPool` 값을 이 스킬의 `--total-prize`와 `--reward-table-pool`에 동일하게 넘긴다**:
    ```bash
-   bun run tools/9c/arena-season-preview.ts --network odin --season-group-id 46 --arena-type SEASON \
-     --season-start-block 20265224 --round-interval 10800 --round-count 14 \
-     --required-medal-count 0 --total-prize 400000 --battle-policy-id 4 --refresh-policy-id 4 \
-     --reward-table-pool 400000
+   bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-season-preview.ts" --network odin --season-group-id 46 --arena-type SEASON --season-start-block 20265224 --round-interval 10800 --round-count 14 --required-medal-count 0 --total-prize 400000 --battle-policy-id 4 --refresh-policy-id 4 --reward-table-pool 400000
    ```
    `--total-prize`는 "ManageSeasons에 실제로 입력할 값"이고 `--reward-table-pool`은 "그게
    `arena-reward-table`에서 정한 값과 같은지 대조할 기준"이다 — 이 예시처럼 둘을 항상 같은 값으로

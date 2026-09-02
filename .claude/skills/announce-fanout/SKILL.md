@@ -71,10 +71,10 @@ description: 나인 크로니클 정규 업데이트의 인게임 공지(TextNot
 ## 2. 실행
 
 ```bash
-bun run tools/9c/announce-fanout.ts
+bun run "$(git rev-parse --show-toplevel)/tools/9c/announce-fanout.ts"
 
 # JSON으로
-bun run tools/9c/announce-fanout.ts --json
+bun run "$(git rev-parse --show-toplevel)/tools/9c/announce-fanout.ts" --json
 ```
 
 FATAL(언어별 본문이 비어 있음)이 있으면 exit 1.

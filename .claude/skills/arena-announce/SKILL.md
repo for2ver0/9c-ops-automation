@@ -72,12 +72,10 @@ description: Nine Chronicles 아레나 시즌 시작 디스코드 공지 초안�
 
 ```bash
 # 어떤 시즌이 있는지 먼저 훑어보기 (고르지는 않음)
-bun run tools/9c/arena-announce.ts --list
+bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-announce.ts" --list
 
 # 초안 생성
-bun run tools/9c/arena-announce.ts \
-  --odin-season-group-id 39 --odin-arena-type SEASON \
-  --heimdall-season-group-id 9 --heimdall-arena-type CHAMPIONSHIP
+bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-announce.ts" --odin-season-group-id 39 --odin-arena-type SEASON --heimdall-season-group-id 9 --heimdall-arena-type CHAMPIONSHIP
 ```
 
 `--list`는 두 네트워크의 진행 중·예정 시즌을 `groupId`/타입/예상 시작(KST)으로만 나열한다 — 여기서
