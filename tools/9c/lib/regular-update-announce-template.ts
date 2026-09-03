@@ -75,6 +75,21 @@ export function todayKst(now: Date = new Date()): CalendarDate {
   return { year: Number(map.year), month: Number(map.month), day: Number(map.day) };
 }
 
+/**
+ * 달력에 실제로 있는 날짜인지 (2026-09-04 추가).
+ *
+ * `Date.UTC`는 범위를 벗어난 값을 **조용히 넘긴다** — 실측: 2026-02-30 → "March 2, 2026",
+ * 2026-09-31 → "October 1, 2026", 2026-13-01 → "January 1, 2027"(해까지 바뀐다). 이 도구는
+ * @everyone 공지 초안에 출시일을 박으므로, 담당자가 친 날짜와 다른 날짜가 조용히 나가는 건
+ * 그 자체로 사고다. 그래서 FATAL로 막는다.
+ */
+export function isRealCalendarDate(d: CalendarDate): boolean {
+  if (!Number.isInteger(d.year) || !Number.isInteger(d.month) || !Number.isInteger(d.day)) return false;
+  if (d.month < 1 || d.month > 12 || d.day < 1) return false;
+  const daysInMonth = new Date(Date.UTC(d.year, d.month, 0)).getUTCDate();
+  return d.day <= daysInMonth;
+}
+
 function compareDates(a: CalendarDate, b: CalendarDate): number {
   return a.year - b.year || a.month - b.month || a.day - b.day;
 }
@@ -91,7 +106,28 @@ export function checkAnnouncement(input: RegularUpdateAnnouncement, today: Calen
     detail: summary.length > 0 ? summary : "요약 문구가 비어 있습니다 — 이 줄은 사람이 직접 써야 합니다(자동 생성하지 않음).",
   });
 
-  const isPast = compareDates(input.releaseDate, today) < 0;
+  const realDate = isRealCalendarDate(input.releaseDate);
+  const { year: y, month: mo, day: dd } = input.releaseDate;
+  checks.push({
+    id: "release-date-is-real",
+    name: "출시일이 실재하는 날짜",
+    ok: realDate,
+    level: realDate ? "OK" : "FATAL",
+    detail: realDate
+      ? `${formatCalendarDate(input.releaseDate)} — 달력에 있는 날짜입니다.`
+      : `${y}-${String(mo).padStart(2, "0")}-${String(dd).padStart(2, "0")}은 달력에 없는 날짜입니다 — 그대로 두면 다른 날짜로 굴러가 공지에 나갑니다(실측: 2026-02-30 → March 2, 2026 / 2026-13-01 → January 1, 2027).`,
+  });
+
+  const apvOk = Number.isInteger(input.apv) && input.apv > 0;
+  checks.push({
+    id: "apv-positive",
+    name: "APV가 양의 정수",
+    ok: apvOk,
+    level: apvOk ? "OK" : "FATAL",
+    detail: apvOk ? `v${input.apv}` : `APV가 양의 정수가 아닙니다(입력: ${input.apv}) — 공지에 "v${input.apv}"로 그대로 찍힙니다.`,
+  });
+
+  const isPast = realDate && compareDates(input.releaseDate, today) < 0;
   checks.push({
     id: "release-date-not-past",
     name: "출시일이 과거가 아님",

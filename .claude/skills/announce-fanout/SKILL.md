@@ -57,7 +57,7 @@ description: 나인 크로니클 정규 업데이트 디스코드 공지 초안�
 | 유닛 테스트 | `tools/9c/lib/announce-fanout.test.ts` | 초안 생성·언어별 길이 균형·불일치 검출, 네트워크 없이 실행 |
 | 라이브 검증기 | `tools/9c/fixtures/verify-announce-fanout.ts` | 실제 공지판 CDN을 직접 찔러 확인 |
 | `regular-update-announce.ts` | `tools/9c/regular-update-announce.ts` (bun) | CLI — 실제 릴리즈 공지(버전/날짜/요약/링크) 초안, 실측 샘플 2건 기반 고정 템플릿 |
-| 로직 | `tools/9c/lib/regular-update-announce-template.ts` | 순수 함수 — 요약 문구 존재·출시일 과거 여부·시각 관측치 이탈을 검사 |
+| 로직 | `tools/9c/lib/regular-update-announce-template.ts` | 순수 함수 — 요약 문구 존재·출시일 실재 여부·APV 양수·출시일 과거 여부·시각 관측치 이탈을 검사 |
 | 유닛 테스트 | `tools/9c/lib/regular-update-announce-template.test.ts` | 실제 공지 2건 골든 텍스트 대조, 네트워크 없이 실행 |
 
 실행: `bun test tools/9c/lib/announce-fanout.test.ts` / `bun test tools/9c/lib/regular-update-announce-template.test.ts` (유닛), `bun run tools/9c/fixtures/verify-announce-fanout.ts` (라이브).
@@ -128,8 +128,25 @@ bun run "$(git rev-parse --show-toplevel)/tools/9c/regular-update-announce.ts" \
 | 검사 | OK | WARN | FATAL |
 | --- | --- | --- | --- |
 | 요약 문구 존재 | 채워짐 | — | 비어 있음(자동 생성 안 함) |
+| 출시일이 실재하는 날짜 (2026-09-04) | 달력에 있는 날짜 | — | 없는 날짜(2026-02-30, 2026-13-01 등) |
+| APV가 양의 정수 (2026-09-04) | 양의 정수 | — | 0·음수·소수 |
 | 출시일이 과거가 아님(KST) | 오늘 이후 | 오늘보다 과거(오타·재사용 의심) | — |
-| 출시 시각이 관측치와 같음 | `11:00 AM`(생략 시 기본값) | 다른 값으로 명시(틀렸다는 뜻 아님, 확인만 요청) | — |
+| 출시 시각이 과거 관측치와 다름 | (해당 없음 — 아래 참고) | `--release-time`을 관측치 `11:00 AM`과 다른 값으로 명시(틀렸다는 뜻 아님, 확인만 요청) | — |
+
+⚠️ 시각 검사는 **다를 때만 결과 목록에 실린다.** `--release-time`을 생략하거나 관측치와
+같은 값을 주면 그 항목 자체가 나오지 않는다(실측). 표의 OK 칸을 "확인해서 정상"으로 읽지
+말 것 — 확인한 게 아니라 실행되지 않은 것이다. 관측 샘플이 2건뿐이라 이 값을 게이트로 쓸
+근거가 없어 이렇게 뒀다.
+
+⚠️ **뒤늦은 "조용한 OK" 점검 (2026-09-04).** 이 도구는 커밋 `5ba2f61`이 "실행 도구가 있는
+스킬 14개를 네 라운드에 걸쳐 모두 점검했다"고 선언한 **뒤에** `5cafb47`로 추가돼, 그 점검을
+받지 않은 유일한 도구였다. 뒤늦게 같은 방식으로 찔러보니 3건이 나왔고 위 두 검사로 막았다:
+
+- `--release-date 2026-02-30` → exit 0으로 **"March 2, 2026"** 초안 생성. `Date.UTC`가 범위를
+  벗어난 값을 조용히 굴린다. `2026-09-31` → October 1, `2026-13-01` → **January 1, 2027**
+  (해까지 바뀐다). @everyone 공지에 담당자가 친 날짜와 다른 날짜가 나가는 사고다.
+- `--apv -5` → exit 0으로 `"We will be releasing v-5 on …"` 생성.
+- 윤년은 실제 달력대로 판정한다(2028-02-29 통과, 2027-02-29 차단) — 회귀 테스트로 고정.
 
 ## 4. 범위 밖 (설계 문서 대비 의도적으로 뺀 것)
 

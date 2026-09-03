@@ -102,3 +102,34 @@ describe("todayKst", () => {
     expect(d).toEqual({ year: 2026, month: 9, day: 3 });
   });
 });
+
+// 2026-09-04: 이 도구는 5ba2f61이 "실행 도구가 있는 스킬 14개 전부 점검 완료"를 선언한 뒤
+// 5cafb47로 추가돼, 그 "조용한 OK" 점검을 받지 않은 유일한 도구였다. 뒤늦게 찔러보니 같은
+// 유형이 나왔다 — 담당자가 친 날짜와 **다른 날짜**가 @everyone 공지 초안에 조용히 실렸다.
+describe("checkAnnouncement — 달력에 없는 날짜/비정상 APV를 막는다", () => {
+  const base = { apv: 200480, summary: "x" };
+  const today: CalendarDate = { year: 2026, month: 1, day: 1 };
+  const level = (d: CalendarDate, apv = base.apv) =>
+    overallLevel(checkAnnouncement({ ...base, apv, releaseDate: d }, today));
+
+  test("Date.UTC가 조용히 굴려버리던 날짜들을 FATAL로 잡는다", () => {
+    expect(level({ year: 2026, month: 2, day: 30 })).toBe("FATAL"); // → March 2, 2026 이었다
+    expect(level({ year: 2026, month: 9, day: 31 })).toBe("FATAL"); // → October 1, 2026 이었다
+    expect(level({ year: 2026, month: 13, day: 1 })).toBe("FATAL"); // → January 1, 2027 (해까지 바뀜)
+    expect(level({ year: 2026, month: 0, day: 1 })).toBe("FATAL");
+    expect(level({ year: 2026, month: 9, day: 0 })).toBe("FATAL");
+  });
+
+  test("윤년은 실제 달력대로 판정한다", () => {
+    expect(level({ year: 2028, month: 2, day: 29 })).not.toBe("FATAL"); // 윤년 — 유효
+    expect(level({ year: 2027, month: 2, day: 29 })).toBe("FATAL"); // 평년 — 없는 날짜
+  });
+
+  test("APV가 양의 정수가 아니면 FATAL", () => {
+    const ok: CalendarDate = { year: 2026, month: 9, day: 22 };
+    expect(level(ok, -5)).toBe("FATAL"); // 공지에 "v-5"로 찍히던 값
+    expect(level(ok, 0)).toBe("FATAL");
+    expect(level(ok, 1.5)).toBe("FATAL");
+    expect(level(ok, 200480)).not.toBe("FATAL");
+  });
+});
