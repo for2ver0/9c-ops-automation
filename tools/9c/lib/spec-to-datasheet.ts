@@ -110,25 +110,41 @@ export function buildWorkItem(csv: ParsedCsv, keyColumn: string, item: PlanItem)
   }
   const currents = rows.map((r) => r[colIdx] ?? "");
   const distinct = [...new Set(currents)];
-  const dupNote = rows.length > 1 ? ` ⚠️ 이 ${keyColumn} 값을 가진 행이 ${rows.length}개입니다 — 어느 행이 정본인지 확인하고 전부 반영하세요.` : "";
-  const allSatisfied = currents.every((c) => valuesEqual(c, item.expected));
+  const shown = distinct.map((v) => `"${v}"`).join(", ");
+  const anySatisfied = currents.some((c) => valuesEqual(c, item.expected));
 
-  if (allSatisfied) {
+  // 여러 행이 같은 키를 갖는 건 lib9c 병합형 시트(25종, 2026-09-03 원본 실측)에선 정상이다.
+  // 그래서 "전부 이 값으로 바꾸세요"라고 지시하면 안 된다 — 그대로 따르면 ArenaSheet의 다른
+  // 라운드나 EventDungeonStageWaveSheet의 다른 웨이브를 뭉개버린다. 여러 행이면 항상 WARN을
+  // 붙이고, 무엇을 고칠지는 사람이 원본을 보고 정하게 한다.
+  if (rows.length > 1) {
+    const detail = anySatisfied
+      ? `${keyColumn}="${item.id}"의 "${item.column}": 해당 행 ${rows.length}개 중 이미 "${item.expected}"인 행이 있습니다(현재 값: ${shown}). 병합형 시트면 작업 불필요할 수 있으니 원본을 확인하세요.`
+      : `${keyColumn}="${item.id}"의 "${item.column}": 해당 행이 ${rows.length}개이고 현재 값은 ${shown} — 어느 행을 "${item.expected}"로 바꿔야 하는지 원본에서 확인하세요(전부 바꾸면 병합형 시트의 다른 항목이 뭉개집니다).`;
+    return {
+      item,
+      status: anySatisfied ? "NO_CHANGE" : "CHANGE",
+      level: "WARN",
+      currentValue: currents[0]!,
+      detail,
+    };
+  }
+
+  if (anySatisfied) {
     return {
       item,
       status: "NO_CHANGE",
-      level: rows.length > 1 ? "WARN" : "OK",
+      level: "OK",
       currentValue: currents[0]!,
-      detail: `${keyColumn}="${item.id}"의 "${item.column}"은 이미 "${currents[0]}" — 작업 불필요.${dupNote}`,
+      detail: `${keyColumn}="${item.id}"의 "${item.column}"은 이미 "${currents[0]}" — 작업 불필요.`,
     };
   }
-  const shown = distinct.map((v) => `"${v}"`).join(", ");
   return {
     item,
     status: "CHANGE",
-    level: rows.length > 1 ? "WARN" : "OK",
+    level: "OK",
     currentValue: currents[0]!,
-    detail: `${keyColumn}="${item.id}"의 "${item.column}": ${shown} → "${item.expected}"로 변경.${dupNote}`,
+    detail: `${keyColumn}="${item.id}"의 "${item.column}": ${shown} → "${item.expected}"로 변경.`,
   };
 }
 

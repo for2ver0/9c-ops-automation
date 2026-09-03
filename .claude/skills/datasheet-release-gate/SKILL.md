@@ -24,7 +24,7 @@ description: Nine Chronicles 정규 업데이트 데이터시트를 백오피스
 | 집계 로직 | `tools/9c/lib/datasheet-release-gate.ts` | 순수 함수(유닛 테스트 대상) |
 | 유닛 테스트 | `tools/9c/lib/datasheet-release-gate.test.ts` | 정규화·집계 로직만(오프라인) |
 
-실행: `bun test tools/9c/lib/datasheet-release-gate.test.ts` (12 pass).
+실행: `bun test tools/9c/lib/datasheet-release-gate.test.ts` (18 pass).
 
 ## 1. 무엇을 하는가
 
@@ -32,6 +32,11 @@ description: Nine Chronicles 정규 업데이트 데이터시트를 백오피스
 
 - 각 시트의 **구조 검증**(datasheet-validate) + **기획서 대사**(spec-datasheet-check)
   결과를 한 섹션으로 합친다.
+- **manifest가 선언한 시트와 JSON이 실제로 본 시트가 같은지 대조한다**(2026-09-03 추가).
+  JSON의 `sheetName`이 manifest와 다르거나 두 검증의 `source`가 서로 다르면 FATAL이다.
+  이 대조가 없던 때는 manifest에 `MonsterSheet`라 적고 `SkillSheet`의 결과를 물려줘도
+  "MonsterSheet — OK"로 보고했다(실제로 저지른 실수다). 대조할 정보가 없으면(두 스킬에
+  `--sheet-name`을 안 준 실행) WARN — "확인 안 함"을 OK로 두지 않는다.
 - 시트별 등급 = 두 결과 중 가장 나쁜 것. 전체 등급 = 모든 시트 중 가장 나쁜 것.
 - 어느 한쪽을 안 줬으면(`structuralJson`/`specCheckJson` 생략) **"미실행"으로 표시**하고
   등급 계산에서 뺀다 — "확인 안 함"과 "확인했는데 통과"는 다른 주장이라 섞지 않는다
@@ -44,7 +49,7 @@ description: Nine Chronicles 정규 업데이트 데이터시트를 백오피스
 
 ```bash
 # 1) 시트마다 두 스킬을 --json으로 실행
-bun run "$(git rev-parse --show-toplevel)/tools/9c/datasheet-validate.ts" --csv ./SkillSheet.csv --key-column Id --json > SkillSheet.structural.json
+bun run "$(git rev-parse --show-toplevel)/tools/9c/datasheet-validate.ts" --csv ./SkillSheet.csv --key-column Id --sheet-name SkillSheet --json > SkillSheet.structural.json
 bun run "$(git rev-parse --show-toplevel)/tools/9c/spec-datasheet-check.ts" --csv ./SkillSheet.csv --assertions ./assertions.json --sheet-name SkillSheet --json > SkillSheet.speccheck.json
 
 # 2) manifest.json으로 묶기

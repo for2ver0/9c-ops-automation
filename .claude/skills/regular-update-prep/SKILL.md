@@ -115,7 +115,7 @@ bun run "$(git rev-parse --show-toplevel)/tools/9c/spec-datasheet-check.ts" --cs
 **(c) 구조·이상 데이터 검증** — 시트(탭)마다 따로 실행:
 
 ```bash
-bun run "$(git rev-parse --show-toplevel)/tools/9c/datasheet-validate.ts" --csv <시트.csv> --key-column Id --baseline-csv <직전회차.csv> --json > <시트>.structural.json
+bun run "$(git rev-parse --show-toplevel)/tools/9c/datasheet-validate.ts" --csv <시트.csv> --key-column Id --baseline-csv <직전회차.csv> --sheet-name <시트명> --json > <시트>.structural.json
 ```
 
 중복 헤더·행별 컬럼 수 불일치·키 컬럼 공백·행 수 급감을 FATAL로 잡는다(v200450에서 실제로 터진

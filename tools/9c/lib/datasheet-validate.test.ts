@@ -4,6 +4,11 @@ import {
   checkDuplicateHeaders,
   checkRowColumnCounts,
   checkKeyColumnNonEmpty,
+  checkHasDataRows,
+  checkDuplicateKeyValues,
+  checkRequestedTabIsNotDefault,
+  checkEmptyHeaders,
+  checkGvizHeadersParam,
   checkRowCountAgainstBaseline,
   checkBaselineDiff,
   overallLevel,
@@ -291,5 +296,139 @@ describe("runStructuralChecks — v200450 regression scenarios end-to-end", () =
     const checks = runStructuralChecks(csv, { keyColumn: "Id", baselineRows: null, baselineCsv: baseline });
     const diffCheck = checks.find((c) => c.id === "baseline-diff");
     expect(diffCheck?.detail).toContain("추가 1행");
+  });
+});
+
+// --- 2026-09-03 회귀: "조용한 OK" 점검에서 나온 결함 ①②③ --------------------------------
+// 셋 다 기존 검사 전부를 통과해 exit 0으로 끝나던 자리다.
+
+describe("checkHasDataRows", () => {
+  test("헤더만 있고 0행이면 FATAL — 익스포트 실패의 전형", () => {
+    const c = checkHasDataRows(0);
+    expect(c.level).toBe("FATAL");
+    expect(c.detail).toContain("익스포트");
+  });
+
+  test("행이 있으면 OK", () => {
+    expect(checkHasDataRows(140).level).toBe("OK");
+  });
+
+  test("0행 CSV는 이제 runStructuralChecks 전체가 FATAL", () => {
+    const csv = parseCsv("Id,Name\n");
+    expect(overallLevel(runStructuralChecks(csv, { keyColumn: "Id", baselineRows: null }))).toBe("FATAL");
+  });
+});
+
+describe("checkDuplicateKeyValues", () => {
+  const headers = ["Id", "Name"];
+
+  // 2026-09-03 lib9c 실측으로 등급 정정: 처음엔 "무음 덮어쓰기"라 보고 FATAL로 만들었는데,
+  // 원본(`Sheet.cs`)을 읽어보니 기본 AddRow는 IDictionary.Add라 중복 시 ArgumentException을
+  // 던지고(덮어쓰기 아님), 무엇보다 AddRow를 오버라이드하는 27개 시트 중 25개가 "같은 id의
+  // 여러 행을 한 항목으로 합치는" 병합형이다(ArenaSheet·SkillBuffSheet·
+  // EventDungeonStageWaveSheet 등). 그 시트들에선 중복 Id가 정상 형식이라 FATAL로 단정하면
+  // 정상 운영 시트를 오탐한다.
+  test("Id 값이 중복되면 WARN — 병합형 시트(lib9c 25종)에선 정상이라 FATAL로 단정 못 함", () => {
+    const rows = [["1", "A"], ["1", "A dup"], ["2", "B"]];
+    const c = checkDuplicateKeyValues(headers, rows, "Id");
+    expect(c.level).toBe("WARN");
+    expect(c.detail).toContain('"1"(2회)');
+    expect(c.detail).toContain("병합형");
+  });
+
+  test("전부 고유하면 OK", () => {
+    expect(checkDuplicateKeyValues(headers, [["1", "A"], ["2", "B"]], "Id").level).toBe("OK");
+  });
+
+  test("빈 키 값은 여기서 세지 않는다 — checkKeyColumnNonEmpty의 몫(이중 보고 방지)", () => {
+    const rows = [["", "A"], ["", "B"], ["1", "C"]];
+    expect(checkDuplicateKeyValues(headers, rows, "Id").level).toBe("OK");
+    expect(checkKeyColumnNonEmpty(headers, rows, "Id").level).toBe("FATAL");
+  });
+
+  test("키 컬럼 미지정/헤더에 없으면 건너뛰고 WARN", () => {
+    expect(checkDuplicateKeyValues(headers, [], null).level).toBe("WARN");
+    expect(checkDuplicateKeyValues(headers, [], "NoSuch").level).toBe("WARN");
+  });
+});
+
+describe("checkRequestedTabIsNotDefault", () => {
+  // 구글 gviz는 없는 탭 이름에 404가 아니라 기본(첫) 탭을 200으로 돌려준다 — 2026-09-03에
+  // 실제 공개 시트로 확인(탭 미지정/없는 탭 A/없는 탭 B의 응답 md5가 동일).
+  test("요청한 탭 응답이 기본 탭 응답과 같으면 WARN — 탭 이름 오타 의심", () => {
+    const c = checkRequestedTabIsNotDefault("Id,Name\n1,A\n", "Id,Name\n1,A\n");
+    expect(c.level).toBe("WARN");
+    expect(c.detail).toContain("오타");
+  });
+
+  test("내용이 다르면 OK — 요청한 탭이 실재함", () => {
+    expect(checkRequestedTabIsNotDefault("Id\n1\n", "Other\n9\n").level).toBe("OK");
+  });
+
+  test("로컬 파일이거나 sheet= 없는 URL이면 해당 없음(OK)", () => {
+    expect(checkRequestedTabIsNotDefault(null, null).level).toBe("OK");
+  });
+
+  test("기본 탭 응답을 못 받으면 WARN — 대조 못 했다고 알린다", () => {
+    expect(checkRequestedTabIsNotDefault("Id\n1\n", null).level).toBe("WARN");
+  });
+});
+
+describe("checkEmptyHeaders / 빈 헤더와 이름 있는 중복의 분리", () => {
+  // 실측(2026-09-03): 실제 밸런스 시트 MaterialItemSheet는 26칸 중 21칸이 빈 헤더이고
+  // 330행 전부 비어 있다. 분리 전에는 이게 "중복 헤더" FATAL로 잡혀, 정상 시트가 매번
+  // FATAL로 떴다(진짜 FATAL을 무시하게 만드는 오탐).
+  test("빈 헤더 열이 전부 빈 값이면 WARN — export 아티팩트", () => {
+    const c = checkEmptyHeaders(["Id", "", "", ""], [["1", "", "", ""]]);
+    expect(c.level).toBe("WARN");
+    expect(c.detail).toContain("3개");
+  });
+
+  test("빈 헤더 열에 데이터가 있으면 FATAL — 업로드 시 값이 뭉개짐", () => {
+    const c = checkEmptyHeaders(["Id", "", ""], [["1", "값있음", ""]]);
+    expect(c.level).toBe("FATAL");
+  });
+
+  test("빈 헤더가 없으면 OK", () => {
+    expect(checkEmptyHeaders(["Id", "Name"], [["1", "A"]]).level).toBe("OK");
+  });
+
+  test("빈 헤더 여러 개는 더 이상 '헤더 중복' FATAL로 세지 않는다", () => {
+    expect(checkDuplicateHeaders(["Id", "", "", ""]).level).toBe("OK");
+  });
+
+  test("이름 있는 중복은 여전히 FATAL — worldboss_info.csv의 Vietnam 중복 같은 진짜 사고", () => {
+    expect(checkDuplicateHeaders(["Id", "Vietnam", "Vietnam"]).level).toBe("FATAL");
+  });
+
+  test("빈 열만 있는 정상 시트는 전체가 WARN에서 멈춘다(FATAL 아님)", () => {
+    const csv = parseCsv('Id,Name,,\n1,A,,\n2,B,,\n');
+    expect(overallLevel(runStructuralChecks(csv, { keyColumn: "Id", baselineRows: null }))).toBe("WARN");
+  });
+});
+
+describe("checkGvizHeadersParam", () => {
+  // 실측(2026-09-03): 실제 밸런스 시트 CollectionSheet를
+  //   ...&sheet=CollectionSheet          → 13행 (헤더가 "id 1 2 3 …"로 접힘, 882행 유실)
+  //   ...&sheet=CollectionSheet&headers=1 → 895행 (정상)
+  // SKILL.md/README가 안내하던 URL 패턴에 headers=1이 빠져 있어 생긴 사고 경로다.
+  const gviz = "https://docs.google.com/spreadsheets/d/ABC/gviz/tq?tqx=out:csv&sheet=CollectionSheet";
+
+  test("gviz URL에 headers=가 없으면 WARN — 대량 행 유실 경로", () => {
+    const c = checkGvizHeadersParam(gviz);
+    expect(c.level).toBe("WARN");
+    expect(c.detail).toContain("headers=1");
+  });
+
+  test("headers=1이 있으면 OK", () => {
+    expect(checkGvizHeadersParam(`${gviz}&headers=1`).level).toBe("OK");
+  });
+
+  test("로컬 파일(null)이면 해당 없음", () => {
+    expect(checkGvizHeadersParam(null).level).toBe("OK");
+  });
+
+  test("gviz가 아닌 URL이면 해당 없음", () => {
+    expect(checkGvizHeadersParam("https://example.com/data.csv").level).toBe("OK");
   });
 });

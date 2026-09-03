@@ -24,6 +24,7 @@ import {
   buildGate,
   normalizeSpecCheckJson,
   normalizeStructuralJson,
+  readIdentity,
   type SheetGateResult,
   type SheetSection,
 } from "./lib/datasheet-release-gate";
@@ -61,9 +62,15 @@ async function readJsonFile(path: string): Promise<unknown> {
 }
 
 async function loadSection(entry: ManifestEntry): Promise<SheetSection> {
-  const structural = entry.structuralJson ? normalizeStructuralJson(await readJsonFile(entry.structuralJson)) : null;
-  const specCheck = entry.specCheckJson ? normalizeSpecCheckJson(await readJsonFile(entry.specCheckJson)) : null;
-  return { sheet: entry.sheet, structural, specCheck };
+  const structuralRaw = entry.structuralJson ? await readJsonFile(entry.structuralJson) : null;
+  const specCheckRaw = entry.specCheckJson ? await readJsonFile(entry.specCheckJson) : null;
+  return {
+    sheet: entry.sheet,
+    structural: structuralRaw ? normalizeStructuralJson(structuralRaw) : null,
+    specCheck: specCheckRaw ? normalizeSpecCheckJson(specCheckRaw) : null,
+    structuralIdentity: structuralRaw ? readIdentity(structuralRaw) : null,
+    specCheckIdentity: specCheckRaw ? readIdentity(specCheckRaw) : null,
+  };
 }
 
 async function main() {

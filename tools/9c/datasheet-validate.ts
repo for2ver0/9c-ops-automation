@@ -30,11 +30,14 @@ interface Args {
   keyColumn: string | null;
   baselineRows: number | null;
   baselineCsvPath?: string;
+  /** 이 CSV가 어느 시트(탭)인지. 검증에는 안 쓰이고 --json 출력에 실려, datasheet-release-gate가
+   *  manifest의 시트 이름과 대조하는 데 쓰인다(시트를 잘못 물려주는 사고 방지). */
+  sheetName: string | null;
   json: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { keyColumn: null, baselineRows: null, json: false };
+  const args: Args = { keyColumn: null, baselineRows: null, sheetName: null, json: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const next = () => argv[++i];
@@ -44,6 +47,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case "--url":
         args.url = next();
+        break;
+      case "--sheet-name":
+        args.sheetName = next() ?? null;
         break;
       case "--key-column":
         args.keyColumn = next();
@@ -80,6 +86,41 @@ async function readInput(args: Args): Promise<string> {
   return file.text();
 }
 
+/**
+ * `--url`에 sheet=가 있을 때, 같은 URL에서 sheet=만 뺀(=기본 탭) 응답을 받아온다.
+ * 구글 gviz는 없는 탭 이름을 줘도 404가 아니라 기본 탭을 200으로 돌려주므로(2026-09-03 실측),
+ * 두 응답이 같은지 비교해 탭 이름 오타를 잡기 위한 것이다. sheet=가 없거나 요청이 실패하면
+ * null을 돌려주고, 그 경우 검사는 "해당 없음"/"대조 못 함"으로 처리된다.
+ */
+async function fetchDefaultTabText(url: string | undefined): Promise<string | null> {
+  if (!url) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (!parsed.searchParams.has("sheet")) return null;
+  parsed.searchParams.delete("sheet");
+  try {
+    const res = await fetch(parsed.toString());
+    if (!res.ok) return null;
+    return await res.text();
+  } catch {
+    return null;
+  }
+}
+
+/** 위 대조가 의미 있는 경우(=URL에 sheet=가 있는 경우)에만 요청 본문을 넘긴다. */
+function requestedTextForTabCheck(args: Args, text: string): string | null {
+  if (!args.url) return null;
+  try {
+    return new URL(args.url).searchParams.has("sheet") ? text : null;
+  } catch {
+    return null;
+  }
+}
+
 async function readBaselineCsv(path: string | undefined): Promise<ParsedCsv | null> {
   if (!path) return null;
   const file = Bun.file(path);
@@ -101,9 +142,18 @@ async function main() {
   }
 
   const baselineCsv = await readBaselineCsv(args.baselineCsvPath);
-  const checks = runStructuralChecks(csv, { keyColumn: args.keyColumn, baselineRows: args.baselineRows, baselineCsv });
+  const defaultTabText = await fetchDefaultTabText(args.url);
+  const checks = runStructuralChecks(csv, {
+    keyColumn: args.keyColumn,
+    baselineRows: args.baselineRows,
+    baselineCsv,
+    requestedText: requestedTextForTabCheck(args, text),
+    defaultTabText,
+    url: args.url ?? null,
+  });
   const summary = {
     source: args.url ?? args.csvPath!,
+    sheetName: args.sheetName,
     headerCount: csv.headers.length,
     rowCount: csv.rows.length,
     level: overallLevel(checks),

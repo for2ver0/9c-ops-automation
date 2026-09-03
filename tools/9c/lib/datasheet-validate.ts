@@ -54,7 +54,15 @@ export function checkDuplicateHeaders(headers: readonly string[]): Check {
   const id = "duplicate-headers";
   const name = "헤더 중복";
   const seen = new Map<string, number>();
-  for (const h of headers) seen.set(h, (seen.get(h) ?? 0) + 1);
+  // 이름이 빈 헤더는 여기서 세지 않는다 (2026-09-03). 구글 시트 gviz는 데이터 범위 밖 열을
+  // 빈 헤더로 함께 내보내는데(실측: MaterialItemSheet 26칸 중 21칸이 빈 헤더, 330행 전부
+  // 비어 있음), 그걸 "중복 헤더"로 세면 정상 시트가 매번 FATAL로 뜬다. 그러면 진짜 사고
+  // (부록 A-2의 worldboss_info.csv `Vietnam` 중복 같은 **이름 있는** 중복)를 봐도 사람이
+  // 무시하게 된다. 빈 헤더는 checkEmptyHeaders가 데이터 유무까지 보고 따로 판정한다.
+  for (const h of headers) {
+    if (h.trim() === "") continue;
+    seen.set(h, (seen.get(h) ?? 0) + 1);
+  }
   const dupes = [...seen.entries()].filter(([, count]) => count > 1).map(([h]) => h);
   if (dupes.length > 0) {
     return {
@@ -141,6 +149,207 @@ export function checkKeyColumnNonEmpty(
 }
 
 /**
+ * gviz URL에 `headers=1`이 빠진 경우 경고 (2026-09-03 추가). 구글 gviz는 헤더 행이 몇 줄인지
+ * **추측**하는데, 추측에 실패하면 데이터 행들을 헤더 한 줄로 접어버린다. 실측(2026-09-03,
+ * 실제 밸런스 시트 `CollectionSheet`):
+ *
+ *   - `...&sheet=CollectionSheet`          → 13행, 첫 헤더가 `"id 1 2 3 4 5 …"`(수백 개 id가
+ *                                             공백으로 이어붙은 한 셀). **882행 유실.**
+ *   - `...&sheet=CollectionSheet&headers=1` → 895행, 헤더 `"id","item_id1","count1",…` 정상.
+ *
+ * 즉 이 파라미터가 없으면 시트에 따라 데이터의 대부분이 조용히 사라진 CSV를 검증하게 된다
+ * (v200450의 `SkillBuffSheet` 188행 유실과 같은 종류의 사고인데, 이번엔 익스포트 도구가 아니라
+ * URL 한 조각이 원인이다). 행 수가 0은 아니라서 `checkHasDataRows`로도 안 걸리고, 기준값이
+ * 없으면 급감 검사로도 안 걸린다.
+ */
+export function checkGvizHeadersParam(url: string | null): Check {
+  const id = "gviz-headers-param";
+  const name = "gviz headers 파라미터";
+  if (url === null) {
+    return { id, name, ok: true, level: "OK", detail: "로컬 파일이라 해당 없음." };
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { id, name, ok: true, level: "OK", detail: "URL을 해석하지 못해 건너뜁니다." };
+  }
+  if (!parsed.pathname.includes("/gviz/tq")) {
+    return { id, name, ok: true, level: "OK", detail: "gviz export URL이 아니라 해당 없음." };
+  }
+  if (!parsed.searchParams.has("headers")) {
+    return {
+      id,
+      name,
+      ok: false,
+      level: "WARN",
+      detail:
+        "gviz URL에 headers=1이 없습니다 — 구글이 헤더 행 수를 잘못 추측하면 데이터 행이 헤더 한 줄로 접혀 대량 유실됩니다(실측: CollectionSheet 895행 → 13행). URL 끝에 &headers=1을 붙여 다시 확인하세요.",
+    };
+  }
+  return { id, name, ok: true, level: "OK", detail: `headers=${parsed.searchParams.get("headers")} 지정됨.` };
+}
+
+/**
+ * 이름이 없는(빈) 헤더 열 판정 (2026-09-03 추가). 두 경우를 구분한다:
+ *
+ *   - 빈 헤더 열이 **전부 빈 값**이면 WARN — 구글 시트가 데이터 범위 밖 열까지 내보낸
+ *     아티팩트다(실측: `MaterialItemSheet`가 26칸 중 21칸이 이 경우, 330행 전부 비어 있음).
+ *     업로드에 실질적 영향은 없지만, 열을 지우고 다시 내보내는 게 깔끔하므로 알려는 준다.
+ *   - 빈 헤더 열에 **데이터가 있으면** FATAL — 이건 진짜 사고다. Backoffice 파서는 헤더
+ *     이름을 Dictionary 키로 쓰므로 이름 없는 열들이 키 ""로 뭉개지고, 그 열의 값이 통째로
+ *     소실된다(부록 A-1의 중복 헤더 무음 병합과 같은 실패 모드).
+ *
+ * 이 검사를 분리하기 전에는 `checkDuplicateHeaders`가 빈 헤더 2개 이상을 "중복"으로 세서
+ * 정상 시트에 매번 FATAL을 냈다 — 진짜 FATAL을 무시하게 만드는 오탐이라 갈라놓았다.
+ */
+export function checkEmptyHeaders(headers: readonly string[], rows: readonly string[][]): Check {
+  const id = "empty-headers";
+  const name = "빈 헤더";
+  const emptyIdx = headers.map((h, i) => [h, i] as const).filter(([h]) => h.trim() === "").map(([, i]) => i);
+  if (emptyIdx.length === 0) {
+    return { id, name, ok: true, level: "OK", detail: "모든 헤더에 이름이 있음." };
+  }
+  const withData = emptyIdx.filter((i) => rows.some((r) => (r[i] ?? "").trim() !== ""));
+  if (withData.length > 0) {
+    return {
+      id,
+      name,
+      ok: false,
+      level: "FATAL",
+      detail: `헤더 이름이 없는데 값이 들어있는 열: ${withData.map((i) => `${i + 1}번째 칸`).join(", ")} — 업로드 시 이름 없는 열들이 한 키로 뭉개져 값이 소실됩니다.`,
+    };
+  }
+  return {
+    id,
+    name,
+    ok: false,
+    level: "WARN",
+    detail: `이름 없는 빈 열 ${emptyIdx.length}개 (데이터도 전부 비어 있음) — 구글 시트가 데이터 범위 밖 열까지 내보낸 것으로 보입니다. 그대로 둬도 값 손실은 없지만, 열을 지우고 다시 내보내면 깔끔합니다.`,
+  };
+}
+
+/**
+ * 데이터 행이 하나도 없는 CSV 검출 (2026-09-03 추가). 헤더만 있고 0행인 파일은 기준값이
+ * 없으면 기존 검사 다섯 개를 전부 통과해 exit 0으로 끝났다 — 익스포트 실패의 전형(탭 이름
+ * 오타로 빈 응답, 필터가 걸린 채 export, 익스포트 도구 오류)인데 조용히 OK가 나오던 자리다.
+ * lib9c TableCSV 중 데이터 행이 0개인 정상 상태는 없으므로 FATAL로 잡는다.
+ */
+export function checkHasDataRows(rowCount: number): Check {
+  const id = "has-data-rows";
+  const name = "데이터 행 존재";
+  if (rowCount === 0) {
+    return {
+      id,
+      name,
+      ok: false,
+      level: "FATAL",
+      detail:
+        "헤더만 있고 데이터 행이 0개입니다 — 익스포트 실패(탭 이름 오타, 필터 걸린 채 export, 도구 오류)일 가능성이 높습니다. 원본 시트를 확인하세요.",
+    };
+  }
+  return { id, name, ok: true, level: "OK", detail: `데이터 ${rowCount}행.` };
+}
+
+/**
+ * 키 컬럼 **값**의 중복 검출 (2026-09-03 추가, 같은 날 등급 정정). 기존 `checkDuplicateHeaders`는
+ * 헤더 이름의 중복만 봤고 Id 값이 겹치는 건 아무도 안 봤다.
+ *
+ * ⚠️ **등급이 WARN인 이유 — 중복 Id는 시트에 따라 정상이다.** 처음엔 "업로드 시 뒤 행이 앞
+ * 행을 무음으로 덮어쓴다"고 보고 FATAL로 만들었는데, lib9c 원본을 직접 읽어보니 **둘 다
+ * 틀렸다**(2026-09-03 실측, `planetarium/lib9c` main):
+ *
+ *   - `Sheet<TKey,TValue>.AddRow`의 기본 구현은 `((IDictionary)_impl).Add(key, value)`다.
+ *     이건 덮어쓰기(`_impl[key] = value`)가 아니라 중복 키에 **ArgumentException을 던진다**.
+ *     `Set()`은 그 호출을 try로 감싸지 않으므로, 병합형이 아닌 시트에서 중복 Id는 무음 사고가
+ *     아니라 로드 실패로 드러난다.
+ *   - 더 중요한 건, **27개 시트가 `AddRow`를 오버라이드하고 그중 25개가 "병합형"**이라는
+ *     점이다(`TryGetValue`로 기존 행을 찾아 리스트에 덧붙임). `ArenaSheet`(한 시즌 = 여러
+ *     라운드 행), `EventDungeonStageWaveSheet`(한 스테이지 = 여러 웨이브 행),
+ *     `SkillBuffSheet`, `StageWaveSheet`, `RuneOptionSheet` 등 — 이 시트들에선 **중복 Id가
+ *     설계된 정상 형식**이다.
+ *
+ * 어느 쪽인지는 시트 종류를 알아야 갈리는데, 그 시트별 매핑은 이 스킬의 범위 밖이다(SKILL.md
+ * §4 "시트 간 참조 ID·타입 검증"과 같은 이유). 그래서 FATAL로 단정하지 않고 WARN으로 알리고
+ * 사람이 판단하게 한다 — 정상 데이터에 FATAL을 상시로 내면 진짜 FATAL을 무시하게 되므로,
+ * 이 파일의 `checkEmptyHeaders` 분리와 같은 판단이다.
+ *
+ * 빈 값은 여기서 세지 않는다 — `checkKeyColumnNonEmpty`가 이미 FATAL로 잡으므로 같은 문제를
+ * "빈 문자열이 중복"으로 두 번 보고하지 않기 위해서다.
+ */
+export function checkDuplicateKeyValues(
+  headers: readonly string[],
+  rows: readonly string[][],
+  keyColumn: string | null,
+): Check {
+  const id = "duplicate-key-values";
+  const name = "키 값 중복";
+  if (keyColumn === null) {
+    return { id, name, ok: true, level: "WARN", detail: "키 컬럼이 지정되지 않아 이 검사를 건너뜁니다 (--key-column으로 지정하세요)." };
+  }
+  const colIdx = headers.findIndex((h) => h.toLowerCase() === keyColumn.toLowerCase());
+  if (colIdx === -1) {
+    return { id, name, ok: false, level: "WARN", detail: `키 컬럼 "${keyColumn}"이 헤더에 없습니다 — 이 검사를 건너뜁니다.` };
+  }
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const v = (row[colIdx] ?? "").trim();
+    if (v === "") continue; // 빈 값은 checkKeyColumnNonEmpty의 몫
+    counts.set(v, (counts.get(v) ?? 0) + 1);
+  }
+  const dupes = [...counts.entries()].filter(([, c]) => c > 1);
+  if (dupes.length > 0) {
+    const sample = dupes.slice(0, 5).map(([v, c]) => `"${v}"(${c}회)`).join(", ");
+    const more = dupes.length > 5 ? ` 외 ${dupes.length - 5}건` : "";
+    return {
+      id,
+      name,
+      ok: false,
+      level: "WARN",
+      detail:
+        `키 컬럼 "${keyColumn}"에 중복된 값: ${sample}${more} — 이 시트가 병합형(같은 id의 여러 행을 한 항목으로 합치는 lib9c 시트 25종, 예: ArenaSheet·SkillBuffSheet·EventDungeonStageWaveSheet)이면 정상입니다. ` +
+        `아니라면 로드 시 ArgumentException으로 실패합니다 — 어느 쪽인지 시트 종류를 확인하세요.`,
+    };
+  }
+  return { id, name, ok: true, level: "OK", detail: `키 컬럼 "${keyColumn}" 값이 전부 고유함.` };
+}
+
+/**
+ * 구글 시트 gviz의 "없는 탭 → 첫 탭 폴백" 검출 (2026-09-03 추가). `?sheet=<탭이름>`에 오타가
+ * 있어도 구글은 404를 주지 않고 **기본(첫) 탭을 200으로 돌려준다** — 2026-09-03에 실제 공개
+ * 시트로 확인했다(탭 미지정 / 없는 탭 A / 없는 탭 B 세 응답이 md5까지 동일). 그래서 탭 이름을
+ * 잘못 적으면 전혀 다른 시트를 검증하고 OK를 받게 된다.
+ *
+ * 응답 본문만으로는 "이게 어느 탭인지" 알 방법이 없으므로, `sheet=`를 뺀 같은 URL(=기본 탭)을
+ * 한 번 더 받아 본문이 같은지 비교한다. 같으면 폴백일 수 있다고 WARN을 낸다 — 사용자가 정말
+ * 첫 번째 탭을 대상으로 삼은 경우엔 오탐이므로 FATAL로 올리지 않는다.
+ */
+export function checkRequestedTabIsNotDefault(requestedText: string | null, defaultTabText: string | null): Check {
+  const id = "requested-tab-fallback";
+  const name = "요청한 탭 확인";
+  if (requestedText === null) {
+    // 대조 입력 자체가 안 들어온 경우다 — 로컬 파일이거나, URL에 sheet=가 없거나, 호출자가
+    // 대조용 본문을 넘기지 않았을 수 있다. 셋을 구분할 정보가 이 함수엔 없으므로 뭉뚱그려
+    // 말한다("sheet=가 없어서"라고 단정하면 sheet=가 있는 호출에서 틀린 설명이 된다).
+    return { id, name, ok: true, level: "OK", detail: "탭 대조 입력이 없어 해당 없음(로컬 파일이거나 대조를 요청하지 않은 실행)." };
+  }
+  if (defaultTabText === null) {
+    return { id, name, ok: false, level: "WARN", detail: "기본 탭 응답을 받지 못해 폴백 여부를 대조하지 못했습니다." };
+  }
+  if (requestedText === defaultTabText) {
+    return {
+      id,
+      name,
+      ok: false,
+      level: "WARN",
+      detail:
+        "요청한 탭의 응답이 sheet= 없는(기본 탭) 응답과 완전히 같습니다 — 탭 이름 오타로 구글이 첫 번째 탭을 돌려준 것일 수 있습니다. 탭 이름을 확인하세요(정말 첫 탭이 대상이면 무시해도 됩니다).",
+    };
+  }
+  return { id, name, ok: true, level: "OK", detail: "요청한 탭이 기본 탭과 다른 내용을 반환했습니다." };
+}
+
+/**
  * 직전 기준(baseline) 행 수 대비 급감 검출. v200450에서 `SkillBuffSheet` 188행이 익스포트
  * 과정에서 통째로 유실된 실패 모드(부록 A-1)를 사후 대조로 잡는다. baseline이 없으면(첫
  * 실행) 비교 없이 정보성으로만 표시한다. 증가는 정상(패치로 항목 추가)이라 통과.
@@ -209,7 +418,17 @@ export function overallLevel(checks: readonly Check[]): Level {
 
 export function runStructuralChecks(
   csv: ParsedCsv,
-  opts: { keyColumn: string | null; baselineRows: number | null; baselineCsv?: ParsedCsv | null },
+  opts: {
+    keyColumn: string | null;
+    baselineRows: number | null;
+    baselineCsv?: ParsedCsv | null;
+    /** `--url`에 sheet=가 있을 때 받아온 원문과, sheet=를 뺀 기본 탭 원문. 폴백 대조용
+     *  (checkRequestedTabIsNotDefault 참고). 로컬 파일이면 둘 다 null. */
+    requestedText?: string | null;
+    defaultTabText?: string | null;
+    /** `--url`로 받은 원본 URL(로컬 파일이면 null). gviz headers 파라미터 점검에 쓴다. */
+    url?: string | null;
+  },
 ): Check[] {
   const baselineCsv = opts.baselineCsv ?? null;
   // baselineCsv가 있으면 거기서 행 수를 자동으로 뽑아 쓴다 — 급감 검사를 위해 --baseline-rows를
@@ -218,9 +437,14 @@ export function runStructuralChecks(
   const baselineRows = opts.baselineRows ?? (baselineCsv ? baselineCsv.rows.length : null);
   return [
     checkDuplicateHeaders(csv.headers),
+    checkEmptyHeaders(csv.headers, csv.rows),
     checkRowColumnCounts(csv.headers, csv.rows),
+    checkHasDataRows(csv.rows.length),
     checkKeyColumnNonEmpty(csv.headers, csv.rows, opts.keyColumn),
+    checkDuplicateKeyValues(csv.headers, csv.rows, opts.keyColumn),
     checkRowCountAgainstBaseline(csv.rows.length, baselineRows),
     checkBaselineDiff(csv, baselineCsv, opts.keyColumn),
+    checkRequestedTabIsNotDefault(opts.requestedText ?? null, opts.defaultTabText ?? null),
+    checkGvizHeadersParam(opts.url ?? null),
   ];
 }

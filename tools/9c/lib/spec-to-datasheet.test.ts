@@ -146,12 +146,23 @@ describe("중복 키가 있는 시트 (첫 행만 보면 안 됨)", () => {
   // 불필요"로 넘겨버렸고, 그러면 옛 값을 가진 두 번째 행이 그대로 업로드된다.
   const dup = parseCsv("Id,Name,Cooldown\n10113000,A,5\n10113000,A dup,9\n");
 
-  test("일부 중복 행만 기대값과 같으면 CHANGE로 잡고 값들을 다 보여준다", () => {
+  // 2026-09-03 정정: 처음엔 "전부 이 값으로 바꾸세요"라고 지시했는데, lib9c 병합형 시트
+  // 25종(ArenaSheet의 라운드, EventDungeonStageWaveSheet의 웨이브 등)에선 그대로 따르면
+  // 다른 항목을 뭉개버린다. 이제 여러 행이면 항상 WARN이고, 이미 그 값을 가진 행이 있으면
+  // "작업 불필요할 수 있음"으로 안내한다.
+  test("이미 기대값을 가진 행이 있으면 NO_CHANGE + WARN — 병합형이면 작업 불필요할 수 있음", () => {
     const w = buildWorkItem(dup, "Id", { id: "10113000", column: "Cooldown", expected: "5" });
+    expect(w.status).toBe("NO_CHANGE");
+    expect(w.level).toBe("WARN");
+    expect(w.detail).toContain("병합형");
+  });
+
+  test("어느 행도 기대값이 아니면 CHANGE + WARN — 전부 바꾸라고 지시하지 않는다", () => {
+    const w = buildWorkItem(dup, "Id", { id: "10113000", column: "Cooldown", expected: "7" });
     expect(w.status).toBe("CHANGE");
     expect(w.level).toBe("WARN");
     expect(w.detail).toContain('"5", "9"');
-    expect(w.detail).toContain("행이 2개");
+    expect(w.detail).toContain("뭉개집니다");
   });
 
   test("모든 중복 행이 기대값과 같아도 WARN — 어느 행이 정본인지 모호하다", () => {

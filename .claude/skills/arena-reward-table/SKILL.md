@@ -28,7 +28,7 @@ description: Nine Chronicles 아레나 시즌 상금 표를 계산하고 검증�
 
 의존성: `@resvg/resvg-js`(PNG 래스터화, 저장소 루트 `package.json`) — `bun install` 필요.
 
-실행: `bun test tools/9c/lib/` (214 pass, 12개 파일 — 다른 5개 스킬 테스트도 같은 디렉터리에 있어
+실행: `bun test tools/9c/lib/` (295 pass, 15개 파일 — 다른 5개 스킬 테스트도 같은 디렉터리에 있어
 범위가 넓어짐) / `bun run tools/9c/fixtures/verify-arena-reward-table.ts [--live]`.
 
 ---

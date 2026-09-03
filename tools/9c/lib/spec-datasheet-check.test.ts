@@ -124,12 +124,23 @@ describe("중복 키가 있는 시트", () => {
   // 검증 스킬이 놓치면 그대로 인터널/메인넷까지 간다.
   const dup = parseCsv("Id,Name,Cooldown\n10113000,A,3\n10113000,A dup,9\n");
 
-  test("중복 행 중 하나라도 기대값과 다르면 MISMATCH(FATAL)로 잡고 값을 다 보여준다", () => {
+  // 2026-09-03 정정: 처음엔 "중복 행 중 하나라도 다르면 FATAL"로 만들었는데, lib9c에는 같은
+  // id의 여러 행을 한 항목으로 합치는 병합형 시트가 25종 있어(ArenaSheet의 라운드,
+  // EventDungeonStageWaveSheet의 웨이브 등) 그 시트들을 통째로 오탐했다. 이제 "아무 행도
+  // 기대값을 안 가짐"만 FATAL이고, 일부만 가지면 WARN(모호)이다.
+  test("일부 행이 기대값을 가지면 WARN — 병합형 시트에서 정상일 수 있어 FATAL로 안 친다", () => {
     const r = checkAssertion(dup, "Id", { id: "10113000", column: "Cooldown", expected: "3" });
+    expect(r.status).toBe("OK");
+    expect(r.level).toBe("WARN");
+    expect(r.detail).toContain("병합형");
+  });
+
+  test("아무 행도 기대값을 갖고 있지 않으면 MISMATCH(FATAL) — 진짜 반영 누락", () => {
+    const r = checkAssertion(dup, "Id", { id: "10113000", column: "Cooldown", expected: "77" });
     expect(r.status).toBe("MISMATCH");
     expect(r.level).toBe("FATAL");
     expect(r.detail).toContain('"3", "9"');
-    expect(r.detail).toContain("행이 2개");
+    expect(r.detail).toContain("하나도 없음");
   });
 
   test("중복 행이 전부 기대값과 같으면 WARN — 통과시키되 원본 확인을 요구한다", () => {
@@ -170,5 +181,27 @@ describe("findConflictingAssertions", () => {
       null,
     );
     expect(conflicts).toHaveLength(1);
+  });
+});
+
+describe("findConflictingAssertions 키 구성 (2026-09-03 NUL 제거 시 동작 보존)", () => {
+  // 복합 키를 NUL 구분자에서 JSON 배열로 바꿀 때 `?? ""`를 `?? null`로 잘못 바꾸면
+  // "sheet 필드가 없는 항목"과 "sheet가 빈 문자열인 항목"이 서로 다른 그룹이 된다.
+  // 기존 동작(같은 그룹)을 유지한다는 계약을 여기서 못박는다.
+  test("sheet 없는 항목과 sheet=\"\" 항목은 같은 그룹으로 묶인다", () => {
+    const conflicts = findConflictingAssertions([
+      { id: "1", column: "A", expected: "3" },
+      { sheet: "", id: "1", column: "A", expected: "7" },
+    ]);
+    expect(conflicts).toHaveLength(1);
+  });
+
+  test("구분자 문자가 값에 들어가도 그룹이 섞이지 않는다", () => {
+    // "a","b|c" 와 "a|b","c" 처럼 구분자를 이어붙이면 충돌하던 조합.
+    const conflicts = findConflictingAssertions([
+      { sheet: "a", id: "b|c", column: "X", expected: "1" },
+      { sheet: "a|b", id: "c", column: "X", expected: "2" },
+    ]);
+    expect(conflicts).toHaveLength(0);
   });
 });

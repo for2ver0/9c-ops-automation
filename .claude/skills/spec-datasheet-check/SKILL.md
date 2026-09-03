@@ -29,7 +29,7 @@ description: Nine Chronicles 정규 업데이트 기획서(사람이 직접 텍�
 | CSV 파서 | `tools/9c/lib/csv.ts` | RFC4180 파서 — datasheet-validate/qa-checklist와 공유 |
 | 유닛 테스트 | `tools/9c/lib/spec-datasheet-check.test.ts` | 대사 로직 전체, 네트워크 없이 실행 |
 
-실행: `bun test tools/9c/lib/spec-datasheet-check.test.ts` (14 pass).
+실행: `bun test tools/9c/lib/spec-datasheet-check.test.ts` (19 pass).
 
 ## 1. 무엇을 하는가
 
@@ -99,8 +99,14 @@ FATAL이 하나라도 있으면 exit 1. `--key-column` 기본값은 `Id`.
 
 1. **중복 키** — 예전엔 일치하는 **첫 행만** 보고 판정해서, 뒤쪽 중복 행이 옛 값을 그대로
    갖고 있어도 "일치"로 통과시켰다. 검증 스킬이 놓치면 그대로 인터널·메인넷까지 간다. 지금은
-   일치하는 행을 전부 보고 **하나라도 다르면 MISMATCH(FATAL)**, 전부 같아도 행이 여러 개면
-   WARN을 붙인다.
+   일치하는 행을 전부 본다. **아무 행도 기대값을 갖고 있지 않을 때만 MISMATCH(FATAL)**이고,
+   일부 행만 가지면 WARN이다.
+
+   > **2026-09-03 등급 재정정** — 처음엔 "하나라도 다르면 FATAL"로 만들었는데, lib9c 원본을
+   > 읽어보니 **같은 id의 여러 행을 한 항목으로 합치는 병합형 시트가 25종** 있었다
+   > (`ArenaSheet`의 라운드, `EventDungeonStageWaveSheet`의 웨이브, `SkillBuffSheet` 등 —
+   > `AddRow`를 오버라이드해 `TryGetValue` 후 리스트에 덧붙인다). 그 시트들에선 한 id에 값이
+   > 다른 행이 여러 개 있는 게 **정상**이라, 옛 판정은 정상 시트를 통째로 오탐했다.
 2. **모순된 assertions** — 같은 `(sheet, id, column)`에 다른 `expected`가 있으면 어떤 값을
    넣어도 한쪽이 FATAL이 된다. 대조 전에 `findConflictingAssertions`로 잡아 FATAL로 멈춘다
    (`spec-to-datasheet`와 공유하는 함수 — 두 스킬이 같은 파일을 쓰므로 판정도 같아야 한다).
