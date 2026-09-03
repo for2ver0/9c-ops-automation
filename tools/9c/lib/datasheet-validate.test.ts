@@ -9,6 +9,11 @@ import {
   checkRequestedTabIsNotDefault,
   checkEmptyHeaders,
   checkGvizHeadersParam,
+  isAnnotationRow,
+  dataRows,
+  isFullyQuotedCsv,
+  checkNotFullyQuoted,
+  checkLib9cSkippedRows,
   withGvizHeaders,
   checkRowCountAgainstBaseline,
   checkBaselineDiff,
@@ -128,6 +133,27 @@ describe("checkRowColumnCounts", () => {
   });
 });
 
+// checkEmptyHeaders에 걸러낸 행만 넘기면, lib9c가 건너뛸 행에 있는 이물질이 "데이터도 전부
+// 비어 있음" WARN으로 내려앉아 사라진다. 실측 사례: EventScheduleSheet[Heimdall] 15행
+// 14번째 칸의 오타 " q" — 그 시트에서 유일하게 실재하는 결함. 이 검사만 전체 행을 보는 이유.
+describe("checkEmptyHeaders — lib9c 스킵 행의 이물질도 잡는다", () => {
+  test("스킵될 행(첫 칸 공백)에만 값이 있어도 FATAL이고 줄 번호를 알려준다", () => {
+    const headers = ["id", "name", ""];
+    const rows = [
+      ["1", "slime", ""],
+      ["", "", " q"], // 파일 3행 — lib9c는 건너뛰지만 표 밖에 입력된 이물질이다
+    ];
+    const result = checkEmptyHeaders(headers, rows);
+    expect(result.level).toBe("FATAL");
+    expect(result.detail).toContain("3번째 칸");
+    expect(result.detail).toContain("3행");
+  });
+
+  test("무명 열이 정말 전부 비어 있으면 WARN에 그친다", () => {
+    expect(checkEmptyHeaders(["id", ""], [["1", ""]]).level).toBe("WARN");
+  });
+});
+
 describe("checkKeyColumnNonEmpty", () => {
   const headers = ["Id", "Name"];
 
@@ -162,6 +188,32 @@ describe("checkKeyColumnNonEmpty", () => {
 
   test("is case-insensitive when matching the key column name", () => {
     expect(checkKeyColumnNonEmpty(["id", "Name"], [["1", "A"]], "Id").level).toBe("OK");
+  });
+
+  // 걸러낸 배열을 넘기면 주석 행 개수만큼 줄 번호가 앞으로 밀려, 파일 5행이 비었는데
+  // "3행"(= 주석 행)이라고 보고된다. 이 함수는 걸러내지 않은 전체 행을 받아 내부에서
+  // 건너뛰어야 한다.
+  test("주석 행이 앞에 있어도 줄 번호는 원본 파일 기준으로 보고한다", () => {
+    const rows = [
+      ["_주석1", "x"],
+      ["_주석2", "y"],
+      ["1", "slime"],
+      ["", "잃어버린 id"],
+    ];
+    const result = checkKeyColumnNonEmpty(headers, rows, "Id");
+    expect(result.level).toBe("FATAL");
+    expect(result.detail).toContain("5행"); // 헤더1 + 주석2 + 정상1 = 파일 5행
+  });
+
+  // 주석 행 자체는(첫 칸이 `_`) 키가 "비어 있지 않지만" lib9c가 로드하지 않으므로, 반대로
+  // 첫 칸이 빈 행은 따옴표 없는 CSV에서는 여전히 FATAL이어야 한다 — v200450 실패 모드.
+  test("gviz(전부 따옴표) 입력에서는 첫 칸이 빈 행을 FATAL로 올리지 않는다", () => {
+    const rows = [
+      ["1", "slime"],
+      ["", ""],
+    ];
+    expect(checkKeyColumnNonEmpty(headers, rows, "Id", { fullyQuoted: true }).level).toBe("OK");
+    expect(checkKeyColumnNonEmpty(headers, rows, "Id").level).toBe("FATAL");
   });
 });
 
@@ -251,9 +303,12 @@ describe("overallLevel", () => {
 });
 
 describe("runStructuralChecks — v200450 regression scenarios end-to-end", () => {
-  test("clean sheet passes all four checks", () => {
-    const csv = parseCsv("Id,Name,Value\n1,Sword,10\n2,Shield,20\n");
-    const checks = runStructuralChecks(csv, { keyColumn: "Id", baselineRows: 2 });
+  // rawText를 넘겨야 전체 OK가 된다 — 안 넘기면 `csv-quoting`이 "확인하지 못했습니다" WARN을
+  // 낸다(미실행을 OK로 위장하지 않기 위한 의도된 동작).
+  test("clean sheet passes every structural check", () => {
+    const raw = "Id,Name,Value\n1,Sword,10\n2,Shield,20\n";
+    const csv = parseCsv(raw);
+    const checks = runStructuralChecks(csv, { keyColumn: "Id", baselineRows: 2, rawText: raw });
     expect(overallLevel(checks)).toBe("OK");
   });
 
@@ -534,5 +589,67 @@ describe("withGvizHeaders — 데이터 요청과 폴백 대조 요청의 조건
     const params = new URL(withGvizHeaders(u).url).searchParams;
     expect(params.get("sheet")).toBe(tab);
     expect(params.get("tqx")).toBe("out:csv");
+  });
+});
+
+// --- 2026-09-03 운영 재확인에서 나온 것: lib9c 스킵 규칙 반영 ---------------------------
+// 근거는 planetarium/lib9c의 Sheet.Set 원본: `if (line.StartsWith(",") || line.StartsWith("_")) continue;`
+// 이걸 반영하지 않아 실제 밸런스 시트의 주석 행이 "키 컬럼 공백" FATAL, "키 값 중복" WARN으로
+// 잡혔다(EventScheduleSheet 2행, CostumeItemSheet의 _spine_resource_path 4행).
+
+describe("isAnnotationRow / dataRows", () => {
+  test("_로 시작하는 행은 형식과 무관하게 주석", () => {
+    expect(isAnnotationRow(["_item_sub_type", "FullCostume|HairCostume"])).toBe(true);
+    expect(isAnnotationRow(["10113000", "Sword"])).toBe(false);
+  });
+
+  test("따옴표 없는 실제 익스포트에서는 빈 첫 칸을 데이터 행으로 남긴다(v200450 FATAL 유지)", () => {
+    const rows = [["", "Sword"], ["2", "Shield"]];
+    expect(dataRows(rows)).toHaveLength(2);
+  });
+
+  test("gviz 프록시(따옴표)에서는 빈 첫 칸도 제외한다 — 거기선 주석 행이 그렇게 보인다", () => {
+    const rows = [["", "1 -> 0.1"], ["1001", "Monster Island"]];
+    expect(dataRows(rows, { fullyQuoted: true })).toHaveLength(1);
+  });
+});
+
+describe("isFullyQuotedCsv / checkNotFullyQuoted", () => {
+  test("gviz 출력은 따옴표 형식으로 판정", () => {
+    expect(isFullyQuotedCsv('"id","name"\n"1","a"\n')).toBe(true);
+  });
+
+  test("실제 lib9c CSV는 아니다", () => {
+    expect(isFullyQuotedCsv("id,name\n1,a\n")).toBe(false);
+  });
+
+  test("따옴표 형식이면 WARN — lib9c 파서가 따옴표를 못 읽어 로드가 중단된다", () => {
+    const c = checkNotFullyQuoted('"id","name"\n"1","a"\n');
+    expect(c.level).toBe("WARN");
+    expect(c.detail).toContain("그대로 업로드하면");
+  });
+
+  test("따옴표 없는 CSV는 OK", () => {
+    expect(checkNotFullyQuoted("id,name\n1,a\n").level).toBe("OK");
+  });
+});
+
+describe("checkLib9cSkippedRows", () => {
+  // 2026-09-03 등급 정정: 처음엔 주석 행만 있어도 WARN을 냈는데, `_` 주석은 lib9c TableCSV의
+  // 정상 관행이라(실측: 140개 중 7개 파일이 사용) 정상 파일에 상시 경고가 떴다 — 진짜 경고를
+  // 무시하게 만드는 패턴이라 정보성 OK로 낮추고, 개수·줄 번호는 그대로 알린다.
+  test("_ 주석 행만 있으면 정보성 OK — 개수와 줄 번호는 알린다", () => {
+    const c = checkLib9cSkippedRows([["_note", "x"], ["1", "a"]]);
+    expect(c.level).toBe("OK");
+    expect(c.detail).toContain("2행");
+    expect(c.detail).toContain("정상 관행");
+  });
+
+  test("따옴표 없는 CSV에서는 빈 첫 칸을 스킵 행으로 세지 않는다", () => {
+    expect(checkLib9cSkippedRows([["", "a"], ["1", "b"]], false).level).toBe("OK");
+  });
+
+  test("gviz 프록시에서는 빈 첫 칸도 스킵 행으로 센다", () => {
+    expect(checkLib9cSkippedRows([["", "a"], ["1", "b"]], true).level).toBe("WARN");
   });
 });

@@ -50,7 +50,10 @@ const csv = parseCsv(text);
 check("parses to at least one header column", csv.headers.length > 0, `got ${csv.headers.length}`);
 check("parses to at least one data row", csv.rows.length > 0, `got ${csv.rows.length}`);
 
-const checks = runStructuralChecks(csv, { keyColumn: "id", baselineRows: null, url });
+// rawText는 반드시 넘긴다 — 안 넘기면 `csv-quoting`이 "원문을 받지 못해 건너뜁니다"라는
+// **OK**를 내고(gviz 응답은 실제로 전부 따옴표다), 내부 fullyQuoted도 false가 되어 CLI와 다른
+// 행 집합으로 판정한다. 라이브 대조가 목적인 스크립트가 CLI와 다르게 동작하면 의미가 없다.
+const checks = runStructuralChecks(csv, { keyColumn: "id", baselineRows: null, url, rawText: text });
 // 개수 대신 **검사 id 집합**을 단언한다 — 예전엔 `checks.length === 5`로 박아둬서 검사가
 // 늘어날 때마다(2026-09-03에 4종 추가) 내용과 무관하게 깨졌고, 무엇이 빠졌는지도 알려주지
 // 않았다. 집합으로 보면 "어느 검사가 사라졌는지"가 바로 나온다.
@@ -65,13 +68,20 @@ const EXPECTED_CHECK_IDS = [
   "baseline-diff",
   "requested-tab-fallback",
   "gviz-headers-param",
+  "lib9c-skipped-rows",
+  "csv-quoting",
 ].sort();
 const actualIds = checks.map((c) => c.id).sort();
 const missing = EXPECTED_CHECK_IDS.filter((id) => !actualIds.includes(id));
+// 양방향으로 본다 — 예전엔 missing만 봐서, 검사를 새로 추가하면 이 목록이 낡아도 통과했다
+// (2026-09-03에 lib9c-skipped-rows·csv-quoting 2종이 빠진 채 통과하고 있었다).
+const unexpected = actualIds.filter((id) => !EXPECTED_CHECK_IDS.includes(id));
 check(
-  "every expected structural check ran on live data",
-  missing.length === 0,
-  missing.length > 0 ? `missing: ${missing.join(", ")}` : undefined,
+  "the live check id set matches this script exactly (neither missing nor undeclared)",
+  missing.length === 0 && unexpected.length === 0,
+  [missing.length ? `missing: ${missing.join(", ")}` : "", unexpected.length ? `undeclared: ${unexpected.join(", ")}` : ""]
+    .filter(Boolean)
+    .join(" / ") || undefined,
 );
 console.log(`(참고) 현재 ${TAB}: 헤더 ${csv.headers.length}칸 / ${csv.rows.length}행, 종합 판정 ${overallLevel(checks)}`);
 for (const c of checks) {
@@ -92,7 +102,7 @@ check(
 // --baseline-csv 회차 diff round-trip: 지금 받아온 라이브 CSV를 "직전 회차"로 재사용해서
 // diffSheet가 실제 라이브 데이터 크기에서도 죽지 않고, 자기 자신과 비교했을 때 변경 0건을
 // 정확히 보고하는지 확인한다.
-const selfChecks = runStructuralChecks(csv, { keyColumn: "id", baselineRows: null, baselineCsv: csv });
+const selfChecks = runStructuralChecks(csv, { keyColumn: "id", baselineRows: null, baselineCsv: csv, rawText: text });
 const diffCheck = selfChecks.find((c) => c.id === "baseline-diff");
 check(
   "baseline-diff against itself reports zero changes on real live data",

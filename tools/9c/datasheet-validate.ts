@@ -27,6 +27,8 @@ import {
   runStructuralChecks,
   overallLevel,
   withGvizHeaders,
+  dataRows,
+  isFullyQuotedCsv,
   type Check,
   type ParsedCsv,
 } from "./lib/datasheet-validate";
@@ -161,12 +163,17 @@ async function main() {
     defaultTabText,
     url: args.url ?? null,
     autoAddedHeaders,
+    rawText: text,
   });
   const summary = {
     source: args.url ?? args.csvPath!,
     sheetName: args.sheetName,
     headerCount: csv.headers.length,
     rowCount: csv.rows.length,
+    // lib9c가 실제로 로드할 행 수(주석·빈 첫 칸 행 제외). rowCount는 원본 줄 수라 둘이 다를 수
+    // 있고, "데이터 N행"이라고 표시할 값은 이쪽이다 — 예전엔 원본 줄 수를 "데이터"로 표시해
+    // lib9c가 로드할 행보다 많게 보였다(2026-09-03).
+    dataRowCount: dataRows(csv.rows, { fullyQuoted: isFullyQuotedCsv(text) }).length,
     level: overallLevel(checks),
     checks,
   };
@@ -184,12 +191,17 @@ function printHumanReadable(summary: {
   source: string;
   headerCount: number;
   rowCount: number;
+  dataRowCount: number;
   level: string;
   checks: Check[];
 }) {
   console.log(`전체 상태: ${summary.level}`);
   console.log(`소스: ${summary.source}`);
-  console.log(`헤더 ${summary.headerCount}칸 / 데이터 ${summary.rowCount}행`);
+  const skippedRows = summary.rowCount - summary.dataRowCount;
+  console.log(
+    `헤더 ${summary.headerCount}칸 / 데이터 ${summary.dataRowCount}행` +
+      (skippedRows > 0 ? ` (lib9c 스킵 ${skippedRows}행 제외, 원본 ${summary.rowCount}행)` : ""),
+  );
   console.log("");
   for (const c of summary.checks) {
     const mark = c.ok ? "OK   " : c.level === "FATAL" ? "FATAL" : "WARN ";

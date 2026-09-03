@@ -47,6 +47,163 @@ export interface Check {
 // 구조적 검증 (순수 함수 — 유닛 테스트 대상)
 // ---------------------------------------------------------------------------------------
 
+/**
+ * lib9c가 로드 때 건너뛰는 행인지 판정한다 (2026-09-03 추가). 규칙을 지어낸 게 아니라
+ * `planetarium/lib9c`의 `Sheet<TKey,TValue>.Set` 원본을 그대로 옮긴 것이다:
+ *
+ *     foreach (var line in linesWithoutColumnName) {
+ *         if (line.StartsWith(",") || line.StartsWith("_")) continue;
+ *
+ * 즉 **첫 칸이 비었거나 `_`로 시작하는 행은 데이터가 아니다.** 실제 lib9c TableCSV에도 그런
+ * 주석 행이 들어 있다 — `EventScheduleSheet.csv`의 `_dungeon_ticket_price: used on lib9c = …`,
+ * `CostumeItemSheet.csv`의 `_item_sub_type,FullCostume|HairCostume|…` 같은 설명 줄이다.
+ *
+ * 이걸 데이터 행으로 세면 두 가지가 어긋난다(2026-09-03 실측으로 드러남):
+ *   - 오탐: 주석 행의 빈 id가 "키 컬럼 공백" FATAL로, `_spine_resource_path`가 "키 값 중복"
+ *     WARN으로 잡혔다. 둘 다 실제 결함이 아니었다.
+ *   - 행 수: lib9c가 실제로 로드하는 행보다 많게 세므로 `--baseline-rows` 급감 검사의 기준이
+ *     어긋난다.
+ *
+ * ⚠️ lib9c는 **원본 줄 텍스트**로 판정하는데, 이 함수는 파싱된 첫 칸으로 판정한다. 따옴표가
+ * 없는 실제 업로드 CSV에서는 둘이 같지만, gviz처럼 모든 필드를 따옴표로 감싼 CSV에서는
+ * lib9c 쪽 규칙이 발동하지 않는다(`"_x"`는 `_`로 시작하지 않는다). 그 차이는
+ * `checkNotFullyQuoted`가 따로 경고한다 — 애초에 그런 CSV는 업로드하면 안 되기 때문이다.
+ */
+export function isLib9cSkippedRow(row: readonly string[]): boolean {
+  const first = (row[0] ?? "").trim();
+  return first === "" || first.startsWith("_");
+}
+
+/** 첫 칸이 `_`로 시작하는 주석 행. 실제 lib9c TableCSV의 관행이라(예: `_item_sub_type,…`)
+ *  형식과 무관하게 언제나 주석으로 본다. */
+export function isAnnotationRow(row: readonly string[]): boolean {
+  return (row[0] ?? "").trim().startsWith("_");
+}
+
+/**
+ * 데이터 행만 골라낸다.
+ *
+ * `_` 주석 행은 항상 제외한다. **첫 칸이 빈 행은 형식에 따라 갈린다**:
+ *   - 실제 익스포트(따옴표 없음)에는 `,`로 시작하는 줄이 **0개**다(2026-09-03 실측: lib9c
+ *     TableCSV의 `EventScheduleSheet.csv`·`CostumeItemSheet.csv` 모두 주석은 `_`로만 쓴다).
+ *     그러니 거기서 빈 첫 칸은 주석이 아니라 **id를 잃은 데이터 행**이고, 그대로 두면
+ *     `checkKeyColumnNonEmpty`가 FATAL로 잡는다(v200450 실패 모드).
+ *   - gviz 프록시(모든 필드가 따옴표)에서는 같은 주석 행이 빈 첫 칸으로 나타난다 — 스프레드시트
+ *     레이아웃 탓이다. 거기서 FATAL을 내면 정상 시트에 매번 오탐이 난다(실측: EventScheduleSheet).
+ */
+export function dataRows(rows: readonly string[][], opts?: { fullyQuoted?: boolean }): string[][] {
+  const dropBlankFirstCell = opts?.fullyQuoted === true;
+  return rows.filter((r) => {
+    if (isAnnotationRow(r)) return false;
+    if (dropBlankFirstCell && (r[0] ?? "").trim() === "") return false;
+    return true;
+  });
+}
+
+/** 원문이 gviz처럼 모든 줄을 따옴표로 시작하는 형식인지. */
+export function isFullyQuotedCsv(rawText: string | null): boolean {
+  if (rawText === null) return false;
+  const lines = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
+  return lines.length > 0 && lines.every((l) => l.startsWith('"'));
+}
+
+/**
+ * lib9c가 건너뛸 행을 **조용히 빼지 않고 세어서 보고한다** (2026-09-03 추가).
+ *
+ * 첫 칸이 `_`로 시작하는 행은 실제 lib9c TableCSV의 주석 관행이라 거의 확실히 주석이지만,
+ * **첫 칸이 빈 행은 주석일 수도 있고 id를 잃은 데이터 행일 수도 있다** — 모양만으로는 구분이
+ * 안 된다. lib9c는 둘 다 똑같이 건너뛰므로 결과도 같다: 그 행의 내용은 반영되지 않는다.
+ *
+ * 그래서 검사에서 제외하되(오탐 방지) 개수와 줄 번호는 항상 알려서, "주석이라 정상인지 아니면
+ * 반영돼야 할 행이 빠지는 건지"는 사람이 판단하게 한다. 조용히 빼면 진짜 누락을 숨기게 되고,
+ * FATAL로 올리면 정상 주석 행에 매번 오탐이 난다(2026-09-03 실측: 실제 밸런스 시트
+ * `EventScheduleSheet`의 주석 2행이 "키 컬럼 공백" FATAL로 잡혔다).
+ *
+ * `fullyQuoted`(gviz 프록시)일 때만 "첫 칸이 빈 행"까지 세고, 따옴표 없는 실제 익스포트에서는
+ * `_` 주석 행만 센다 — 그쪽에서 빈 첫 칸은 주석 관행이 아니라 id를 잃은 데이터 행이므로
+ * `checkKeyColumnNonEmpty`가 FATAL로 잡아야 한다(v200450 실패 모드를 약화시키지 않기 위함).
+ */
+export function checkLib9cSkippedRows(rows: readonly string[][], fullyQuoted = false): Check {
+  const id = "lib9c-skipped-rows";
+  const name = "lib9c 스킵 행";
+  const skipped = rows
+    .map((r, idx) => ({ line: idx + 2, row: r })) // +2: 1-index + 헤더 행
+    .filter((e) => (fullyQuoted ? isLib9cSkippedRow(e.row) : isAnnotationRow(e.row)));
+  if (skipped.length === 0) {
+    return { id, name, ok: true, level: "OK", detail: "건너뛸 행 없음 — 모든 행이 데이터 행입니다." };
+  }
+  const sample = skipped.slice(0, 10).map((e) => e.line).join(", ");
+  const more = skipped.length > 10 ? ` 외 ${skipped.length - 10}건` : "";
+  const underscore = skipped.filter((e) => (e.row[0] ?? "").trim().startsWith("_")).length;
+  const blank = skipped.length - underscore;
+
+  // `_` 주석 행만 있으면 **정보성 OK**다 — lib9c TableCSV의 문서화된 관행이고 실제 140개 중
+  // 7개 파일이 쓴다(2026-09-03 실측). 정상 파일에 상시 WARN을 띄우면 진짜 경고를 무시하게
+  // 되므로(이 파일의 checkEmptyHeaders 분리와 같은 판단) 개수만 알린다.
+  // 첫 칸이 빈 행이 섞였을 때만 WARN이다 — 실제 익스포트엔 `,`로 시작하는 줄이 140개 파일
+  // 통틀어 0개라, 그런 행은 주석 관행이 아니라 판단이 필요한 신호다.
+  if (blank === 0) {
+    return {
+      id,
+      name,
+      ok: true,
+      level: "OK",
+      detail: `_로 시작하는 주석 행 ${underscore}개(${sample}행${more})는 lib9c가 건너뛰므로 아래 검사에서 제외했습니다 — lib9c TableCSV의 정상 관행입니다.`,
+    };
+  }
+  return {
+    id,
+    name,
+    ok: false,
+    level: "WARN",
+    detail:
+      `lib9c가 로드 때 건너뛸 행 ${skipped.length}개(첫 칸이 _로 시작 ${underscore}개, 비어 있음 ${blank}개): ${sample}행${more} — ` +
+      `아래 검사들은 이 행들을 뺀 채 판정했습니다. 주석 행이면 정상이지만, 반영돼야 할 데이터 행이라면 그 내용은 업로드해도 적용되지 않습니다.`,
+  };
+}
+
+/**
+ * 모든 필드가 따옴표로 감싸인 CSV 경고 (2026-09-03 추가). lib9c의 `TryGetRow`는
+ * `line.Trim().Split(',')`로 끝이라 **따옴표를 이해하지 못하고**, 그 결과를 그대로
+ * `row.Set(fields)`에 넘긴다. `Set`에 try/catch가 없으므로 `"1001"`을 int로 파싱하다 던지면
+ * 시트 로드 전체가 중단된다(원본 확인).
+ *
+ * 구글 시트 gviz(`tqx=out:csv`)는 **모든 필드**를 따옴표로 감싸므로, 그 출력을 그대로
+ * 업로드하면 안 된다 — 검토용 프록시일 뿐이다.
+ *
+ * ⚠️ "실제 파일엔 따옴표가 없다"고 단정하면 안 된다(2026-09-03 정정 — 처음에 2개 파일만 보고
+ * 그렇게 적었다). 140개 TableCSV를 전수로 보니 `WorldBossActionPatternSheet.csv` 1개가
+ * `900001,1,"500003,100000,100000,100000"`처럼 **쉼표를 포함한 값에만** 따옴표를 쓴다. 그래서
+ * 이 검사는 "따옴표가 하나라도 있으면"이 아니라 **"모든 줄이 따옴표로 시작하면"**(=gviz 형태)일
+ * 때만 경고한다 — 부분 따옴표는 실재하는 정상 형식이라 막으면 안 된다.
+ */
+export function checkNotFullyQuoted(rawText: string | null): Check {
+  const id = "csv-quoting";
+  const name = "따옴표 형식";
+  if (rawText === null) {
+    // "확인 못 했다"를 OK로 내지 않는다 — 이 레포의 "미실행 ≠ 확인했는데 정상" 원칙.
+    // 실제로 이 자리가 사고였다: verify-datasheet-validate가 gviz 응답을 받아오면서 rawText를
+    // 안 넘겨, 전부 따옴표인 응답인데도 이 검사가 OK로 넘어갔다(2026-09-03).
+    return { id, name, ok: false, level: "WARN", detail: "원문(rawText)을 받지 못해 확인하지 못했습니다 — 따옴표 형식 여부는 미확인입니다." };
+  }
+  const lines = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 0) {
+    return { id, name, ok: true, level: "OK", detail: "판정할 줄이 없습니다." };
+  }
+  const quoted = lines.filter((l) => l.startsWith('"')).length;
+  if (quoted === lines.length) {
+    return {
+      id,
+      name,
+      ok: false,
+      level: "WARN",
+      detail:
+        "모든 줄이 따옴표로 시작합니다(구글 시트 gviz 출력 형태) — lib9c 파서는 따옴표를 이해하지 못해 이 파일을 그대로 업로드하면 로드가 중단됩니다. 검토용으로만 쓰고, 업로드는 따옴표 없는 실제 익스포트 파일로 하세요.",
+    };
+  }
+  return { id, name, ok: true, level: "OK", detail: "따옴표로 감싸인 형식이 아닙니다(업로드 가능한 형태)." };
+}
+
 /** 중복 헤더 검출. Backoffice `ParseCsv`가 `row[headers[j]]`로 Dictionary 키를 헤더 이름으로
  *  써서 중복 헤더의 값을 무음으로 덮어쓰던 버그(부록 A-1) — 여기서는 조용히 넘어가지 않고
  *  FATAL로 잡는다. 실측 사례: `worldboss_info.csv`의 `Vietnam` 중복(부록 A-2). */
@@ -82,12 +239,24 @@ export function checkDuplicateHeaders(headers: readonly string[]): Check {
  *  알려진 한계: `line`은 논리 행 인덱스로 계산한다(1개 논리 행 = 물리 파일 1줄이라는 가정).
  *  어떤 행이든 따옴표 안에 개행을 포함하면 그 이후 모든 행은 실제 물리 줄 번호보다 작게
  *  보고된다 — 파서가 물리 줄 번호를 별도로 추적하지 않기 때문. 진단이 완전히 틀리는 건
- *  아니고(그 행 근처를 찾는 데는 쓸 수 있음) 정확한 줄 번호가 필요하면 직접 세어야 한다. */
-export function checkRowColumnCounts(headers: readonly string[], rows: readonly string[][]): Check {
+ *  아니고(그 행 근처를 찾는 데는 쓸 수 있음) 정확한 줄 번호가 필요하면 직접 세어야 한다.
+ *
+ *  lib9c가 건너뛰는 행(주석 등)은 검사에서 뺀다 (2026-09-03 추가) — 그 행들은 애초에
+ *  파싱되지 않으므로 칸 수가 맞든 틀리든 업로드에 영향이 없다. 다른 검사들과 같은 기준을
+ *  쓰는 것이기도 하다. **줄 번호는 원본 인덱스를 그대로 쓴다** — 걸러낸 뒤 다시 세면 사람이
+ *  파일에서 찾을 줄과 어긋난다. */
+export function checkRowColumnCounts(
+  headers: readonly string[],
+  rows: readonly string[][],
+  opts?: { fullyQuoted?: boolean },
+): Check {
   const id = "row-column-counts";
   const name = "행별 컬럼 수 일치";
+  const skip = (r: readonly string[]) =>
+    isAnnotationRow(r) || (opts?.fullyQuoted === true && (r[0] ?? "").trim() === "");
   const mismatches: Array<{ line: number; count: number }> = [];
   rows.forEach((row, idx) => {
+    if (skip(row)) return;
     if (row.length !== headers.length) {
       mismatches.push({ line: idx + 2, count: row.length }); // +2: 1-index + 헤더 행
     }
@@ -115,11 +284,16 @@ export function checkRowColumnCounts(headers: readonly string[], rows: readonly 
  *  시트마다 키 컬럼 이름이 다를 수 있어서 강제하지 않는다.
  *
  *  `line`은 checkRowColumnCounts와 같은 논리 행 인덱스 방식이라 같은 한계(따옴표 안 개행이
- *  있는 행 이후로는 물리 줄 번호보다 작게 보고됨)를 그대로 갖는다 — 위 주석 참고. */
+ *  있는 행 이후로는 물리 줄 번호보다 작게 보고됨)를 그대로 갖는다 — 위 주석 참고.
+ *
+ *  checkRowColumnCounts와 같은 이유로 **걸러내지 않은 전체 행**을 받아 내부에서 건너뛴다.
+ *  걸러낸 배열을 넘기면 idx가 밀려 줄 번호가 틀린다 — 확인: 주석 2행이 앞에 있고 파일 5행의
+ *  키가 비었을 때 "3행"으로 보고돼 사람이 엉뚱한 주석 행을 보게 된다. 넘기지 말 것. */
 export function checkKeyColumnNonEmpty(
   headers: readonly string[],
   rows: readonly string[][],
   keyColumn: string | null,
+  opts?: { fullyQuoted?: boolean },
 ): Check {
   const id = "key-column-non-empty";
   const name = "키 컬럼 공백";
@@ -130,8 +304,11 @@ export function checkKeyColumnNonEmpty(
   if (colIdx === -1) {
     return { id, name, ok: false, level: "WARN", detail: `키 컬럼 "${keyColumn}"이 헤더에 없습니다 — 이 검사를 건너뜁니다.` };
   }
+  const skip = (r: readonly string[]) =>
+    isAnnotationRow(r) || (opts?.fullyQuoted === true && (r[0] ?? "").trim() === "");
   const emptyLines = rows
-    .map((row, idx) => ({ line: idx + 2, value: row[colIdx] }))
+    .map((row, idx) => ({ line: idx + 2, row, value: row[colIdx] }))
+    .filter((r) => !skip(r.row))
     .filter((r) => r.value === undefined || r.value.trim().length === 0)
     .map((r) => r.line);
   if (emptyLines.length > 0) {
@@ -249,14 +426,24 @@ export function checkEmptyHeaders(headers: readonly string[], rows: readonly str
   if (emptyIdx.length === 0) {
     return { id, name, ok: true, level: "OK", detail: "모든 헤더에 이름이 있음." };
   }
-  const withData = emptyIdx.filter((i) => rows.some((r) => (r[i] ?? "").trim() !== ""));
+  // 이 검사는 lib9c 스킵 행을 **빼지 않는다**(다른 데이터 검사와 다른 점). 무명 열의 값은
+  // lib9c가 그 행을 로드하든 말든 "표 밖에 입력된 이물질"이라는 신호이기 때문이다 — 실제
+  // lib9c CSV 140개는 전부 이름 있는 헤더만 쓴다(2026-09-03 실측, 무명 헤더 0개).
+  // 스킵 행을 빼도록 바꾸면 `EventScheduleSheet[Heimdall]` 15행의 오타 " q"(이 시트에서
+  // 유일하게 실재하는 결함)가 스킵 행에 묻혀 사라진다 — 직접 확인했으니 바꾸지 말 것.
+  const withData = emptyIdx
+    .map((i) => ({ col: i, lines: rows.map((r, idx) => ({ idx, v: r[i] ?? "" })).filter((e) => e.v.trim() !== "").map((e) => e.idx + 2) }))
+    .filter((e) => e.lines.length > 0);
   if (withData.length > 0) {
+    const where = withData
+      .map((e) => `${e.col + 1}번째 칸(${e.lines.slice(0, 5).join(", ")}행${e.lines.length > 5 ? " 외" : ""})`)
+      .join(", ");
     return {
       id,
       name,
       ok: false,
       level: "FATAL",
-      detail: `헤더 이름이 없는데 값이 들어있는 열: ${withData.map((i) => `${i + 1}번째 칸`).join(", ")} — 업로드 시 이름 없는 열들이 한 키로 뭉개져 값이 소실됩니다.`,
+      detail: `헤더 이름이 없는데 값이 들어있는 열: ${where} — 업로드 시 이름 없는 열들이 한 키로 뭉개져 값이 소실됩니다. 실제 lib9c CSV 140개는 전부 이름 있는 헤더만 쓰므로(2026-09-03 실측), 표 밖에 잘못 입력된 값일 가능성이 높습니다.`,
     };
   }
   return {
@@ -469,22 +656,34 @@ export function runStructuralChecks(
     url?: string | null;
     /** 위 URL에 headers=1이 없어 CLI가 요청 때 자동으로 붙였는지. */
     autoAddedHeaders?: boolean;
+    /** CSV 원문. 따옴표 형식 판정에 쓴다(checkNotFullyQuoted). */
+    rawText?: string | null;
   },
 ): Check[] {
   const baselineCsv = opts.baselineCsv ?? null;
   // baselineCsv가 있으면 거기서 행 수를 자동으로 뽑아 쓴다 — 급감 검사를 위해 --baseline-rows를
   // 따로 또 계산해서 넘길 필요가 없다. 둘 다 명시적으로 주어졌으면 --baseline-rows가 우선(더
   // 명시적인 입력을 존중).
-  const baselineRows = opts.baselineRows ?? (baselineCsv ? baselineCsv.rows.length : null);
+  // lib9c가 건너뛸 행(첫 칸이 비었거나 _로 시작)은 데이터 행 검사에서 뺀다 — 그게 lib9c가
+  // 실제로 하는 일이고, 안 빼면 정상 주석 행이 "키 컬럼 공백"·"키 값 중복" 오탐을 낸다
+  // (2026-09-03 실측). 뺐다는 사실 자체는 checkLib9cSkippedRows가 항상 보고한다.
+  const fullyQuoted = isFullyQuotedCsv(opts.rawText ?? null);
+  const data = dataRows(csv.rows, { fullyQuoted });
+  const baselineData = baselineCsv
+    ? { headers: baselineCsv.headers, rows: dataRows(baselineCsv.rows, { fullyQuoted }) }
+    : null;
+  const baselineRows = opts.baselineRows ?? (baselineData ? baselineData.rows.length : null);
   return [
     checkDuplicateHeaders(csv.headers),
     checkEmptyHeaders(csv.headers, csv.rows),
-    checkRowColumnCounts(csv.headers, csv.rows),
-    checkHasDataRows(csv.rows.length),
-    checkKeyColumnNonEmpty(csv.headers, csv.rows, opts.keyColumn),
-    checkDuplicateKeyValues(csv.headers, csv.rows, opts.keyColumn),
-    checkRowCountAgainstBaseline(csv.rows.length, baselineRows),
-    checkBaselineDiff(csv, baselineCsv, opts.keyColumn),
+    checkRowColumnCounts(csv.headers, csv.rows, { fullyQuoted }),
+    checkLib9cSkippedRows(csv.rows, fullyQuoted),
+    checkHasDataRows(data.length),
+    checkKeyColumnNonEmpty(csv.headers, csv.rows, opts.keyColumn, { fullyQuoted }),
+    checkDuplicateKeyValues(csv.headers, data, opts.keyColumn),
+    checkRowCountAgainstBaseline(data.length, baselineRows),
+    checkBaselineDiff({ headers: csv.headers, rows: data }, baselineData, opts.keyColumn),
+    checkNotFullyQuoted(opts.rawText ?? null),
     checkRequestedTabIsNotDefault(opts.requestedText ?? null, opts.defaultTabText ?? null),
     checkGvizHeadersParam(opts.url ?? null, opts.autoAddedHeaders ?? false),
   ];
