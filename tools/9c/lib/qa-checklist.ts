@@ -60,6 +60,17 @@ export interface SheetDiff {
    *  같은 계열의 함정이지만 여기선 행 키 기준). */
   readonly duplicateKeysBefore: readonly string[];
   readonly duplicateKeysAfter: readonly string[];
+  /** 헤더와 칸 수가 다른 행의 개수 (2026-09-03 추가). diff 자체는 밀린 값을 정직하게 보여주지만
+   *  (`Name "slime"→"100"`처럼), **그게 데이터 변경인지 파일이 깨진 건지는 구분해주지 않아서**
+   *  QA 담당자가 의도된 변경으로 오해할 수 있다. 여기서는 구조 검증을 다시 구현하지 않고
+   *  "칸 수가 다른 행이 있다"는 사실만 세어, datasheet-validate로 보내는 신호로 쓴다. */
+  readonly raggedRowsBefore: number;
+  readonly raggedRowsAfter: number;
+}
+
+/** 헤더 칸 수와 다른 행의 개수. */
+function countRaggedRows(csv: ParsedCsv): number {
+  return csv.rows.filter((r) => r.length !== csv.headers.length).length;
 }
 
 function indexByKey(csv: ParsedCsv, keyColIdx: number): { map: Map<string, Record<string, string>>; duplicates: string[] } {
@@ -125,7 +136,17 @@ export function diffSheet(before: ParsedCsv, after: ParsedCsv, keyColumn: string
   removed.sort();
   changed.sort((a, b) => a.key.localeCompare(b.key));
 
-  return { keyColumn, columnChanges, added, removed, changed, duplicateKeysBefore, duplicateKeysAfter };
+  return {
+    keyColumn,
+    columnChanges,
+    added,
+    removed,
+    changed,
+    duplicateKeysBefore,
+    duplicateKeysAfter,
+    raggedRowsBefore: countRaggedRows(before),
+    raggedRowsAfter: countRaggedRows(after),
+  };
 }
 
 // ---------------------------------------------------------------------------------------
@@ -176,6 +197,18 @@ export function buildQaChecklist(sheetName: string, diff: SheetDiff): string[] {
   }
   if (diff.duplicateKeysAfter.length > 0) {
     items.push(`[!] ${sheetName}: 이후(after) 파일에 중복된 ${diff.keyColumn} 발견 — ${sampleList(diff.duplicateKeysAfter)} (diff는 마지막 값만 반영했습니다, 원본 확인 필요)`);
+  }
+  // 칸 수가 어긋난 행이 있으면 위의 값 변경이 "실제 변경"이 아니라 "셀이 밀린 것"일 수 있다.
+  // 여기서 구조를 다시 검증하지는 않고, 그 판단을 하는 도구로 보낸다.
+  const ragged: string[] = [];
+  if (diff.raggedRowsBefore > 0) ragged.push(`이전(before) ${diff.raggedRowsBefore}행`);
+  if (diff.raggedRowsAfter > 0) ragged.push(`이후(after) ${diff.raggedRowsAfter}행`);
+  if (ragged.length > 0) {
+    // 문구가 "위 값 변경"을 전제하면 안 된다 — 파일 중간 빈 줄처럼 값 변경이 하나도 없는데
+    // 칸 수만 어긋나는 경우가 있고, 그때 "위 값 변경이…"는 가리킬 대상이 없다(2026-09-03 실측).
+    items.push(
+      `[!] ${sheetName}: 헤더와 칸 수가 다른 행 발견 — ${ragged.join(", ")} (빈 줄이거나 셀이 밀린 행일 수 있습니다. 위에 값 변경이 함께 보고됐다면 그게 실제 변경이 아닐 수 있으니 datasheet-validate로 구조를 먼저 확인하세요)`,
+    );
   }
 
   return items;

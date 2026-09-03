@@ -38,6 +38,17 @@ export interface LanguageNotice {
  * 없으므로 "길이가 비슷한가" 정도의 아주 거친 신호만 준다 — FATAL로 올리지 않는다.
  * 기준: 가장 짧은 본문이 가장 긴 본문의 20% 미만이면 의심.
  */
+/**
+ * ⚠️ 이 검사의 20% 임계값은 **근거 없이 임의로 정한 값이다**(2026-09-03 점검에서 드러남).
+ * 이 저장소는 다른 곳에서 "근거 없이 지어낸 임계값은 만들지 않는다"는 원칙을 반복해 적어뒀고
+ * (`datasheet-validate` SKILL.md의 회차 diff·헤더 길이 항목), `arena-season-checklist`는 임의로
+ * 정한 임계값을 "근거 없이 정해짐"으로 공개해뒀다. 이 함수만 그 공개 없이 쓰이고 있었다.
+ *
+ * 관측치는 1건뿐이다 — 2026-09-03 라이브 기준 EN 977자 / KR 518자 / JP 468자로 최단·최장
+ * 비율이 0.479였다. 임계값 0.2와는 여유가 있지만, 관측 1건으로는 "0.2가 맞다"고 말할 수 없다.
+ * 실제 번역 누락 사례를 몇 건 모아 비율 분포를 보기 전까지는 이 값을 신뢰하지 말 것 —
+ * WARN이 떠도 "누락 확정"이 아니고, 안 떠도 "누락 없음"이 아니다.
+ */
 export function checkLanguageLengthParity(notices: readonly LanguageNotice[]): AnnounceCheck {
   const id = "language-length-parity";
   const name = "언어별 본문 길이 균형";
