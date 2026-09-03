@@ -1,6 +1,6 @@
 ---
 name: announce-fanout
-description: 나인 크로니클 정규 업데이트의 인게임 공지(TextNotice EN/KR/JP) 내용을 디스코드 공지 초안으로 재포장하고, 언어별 버전 불일치·빈 본문·번역 누락 의심을 잡을 때 사용. "이번 업데이트 디스코드 공지 초안 만들어줘", "공지 언어별로 다른 거 없는지 확인해줘" 같은 요청에 사용. 인게임 공지판 CDN을 읽기만 하므로 권한 승인 없이 바로 실행 가능(release-guard와 동일 소스). ⚠️ 원래 설계 문서가 그리던 두 역할(9단계: 정규 업데이트 공지 변환 / 11단계: 휴장·이벤트 공지 초안) 중 이 스킬은 9단계만 구현한다 — 11단계는 Event.json을 읽는 것 자체는 이제 막혀 있지 않지만(공개 CDN으로 확인됨), 그 파일엔 배너 이미지명·링크 같은 메타데이터만 있고 초안화할 문구 자체가 없어 범위 밖이다(아래 참고). 실제 디스코드 게시는 이 스킬의 범위 밖 — 초안까지만 만들고 게시는 사람이 직접 한다(arena-announce와 동일 패턴).
+description: 나인 크로니클 정규 업데이트 디스코드 공지 초안을 만들 때 사용. 실제 릴리즈 공지(버전+날짜+한줄요약+깃북 링크)가 필요하면 `regular-update-announce-template.ts`(실측 샘플 2건에서 역공학한 고정 템플릿)를, 인게임 공지판(TextNotice EN/KR/JP) 내용 자체를 언어별로 대사·확인하고 싶으면 기존 `announce-fanout.ts`(버전 불일치·빈 본문·번역 누락 의심 검사)를 쓴다. "이번 업데이트 디스코드 공지 초안 만들어줘", "공지 언어별로 다른 거 없는지 확인해줘" 같은 요청에 사용. 인게임 공지판 CDN을 읽기만 하므로 권한 승인 없이 바로 실행 가능(release-guard와 동일 소스). ⚠️ 원래 설계 문서가 그리던 두 역할(9단계: 정규 업데이트 공지 변환 / 11단계: 휴장·이벤트 공지 초안) 중 이 스킬은 9단계만 구현한다 — 11단계는 Event.json을 읽는 것 자체는 이제 막혀 있지 않지만(공개 CDN으로 확인됨), 그 파일엔 배너 이미지명·링크 같은 메타데이터만 있고 초안화할 문구 자체가 없어 범위 밖이다(아래 참고). 실제 디스코드 게시는 이 스킬의 범위 밖 — 초안까지만 만들고 게시는 사람이 직접 한다(arena-announce와 동일 패턴).
 ---
 
 # announce-fanout (부분 구현 — 정규 업데이트 공지 변환만, 휴장/이벤트 공지는 미착수)
@@ -29,31 +29,51 @@ description: 나인 크로니클 정규 업데이트의 인게임 공지(TextNot
    근본적으로 다른 종류의 데이터다. 진짜 "휴장 문구"가 어디서 작성되는지(별도 시스템?
    이미지 안에 텍스트로 들어감?)부터 다시 조사해야 한다.
 
-### `arena-announce`와 다른 점 — 왜 "고정 템플릿"이 아닌가
+### `arena-announce`와 다른 점 — 왜 처음엔 "고정 템플릿"이 아니었나 (2026-09-03 이후 절반 해소)
 
 `arena-announce`는 담당자가 실제로 과거에 게시한 디스코드 공지 3건을 통째로 받아, 바이트
 단위로 재현되는 고정 템플릿을 만들었다(`arena-announce-template.ts` 모듈 doc, 심지어
-숨은 문자(word joiner)까지 재현). 이 스킬은 **그런 실제 샘플을 아직 받지 못했다** — 정규
-업데이트 디스코드 공지의 과거 게시물이 이번 착수에 제공되지 않았다.
+숨은 문자(word joiner)까지 재현). 이 스킬은 **처음엔 그런 실제 샘플을 받지 못해서** 새
+문구를 짓는 대신 이미 검증·게시된 인게임 공지판 내용을 그대로 재포장하는 우회로를 택했다
+(아래 `buildAnnouncementDraft`, `tools/9c/lib/announce-fanout.ts`).
 
-실제 샘플 없이 "이런 형식일 것 같다"는 템플릿을 만드는 건 근거 없는 카피 발명이다. 그래서
-이 스킬은 새 문구를 짓지 않는다 — **이미 검증·게시된 인게임 공지판의 내용을 그대로 가져와
-디스코드에 올리기 좋은 형태로 재포장**할 뿐이다. 초안 맨 아래에 "검증된 고정 템플릿이
-아니다, 채널의 과거 게시물과 비교해 다듬으라"는 경고를 항상 붙인다.
-
-**나중에 실제 과거 정규 업데이트 디스코드 공지 샘플이 확보되면**, `arena-announce`와 같은
-방식(문구 고정 + 조건부 문단 분리)으로 다시 만들 가치가 있다 — 지금은 그 재료가 없다.
+**2026-09-03에 담당자가 실제 정규 업데이트 디스코드 공지 2건을 제공**했고, 그 내용은
+예상과 달랐다 — 인게임 공지판 3개 언어 본문을 옮긴 게 아니라, **버전+날짜/시각+한 줄 요약
++깃북 링크**뿐인 훨씬 짧은 글이었다(실측 원문:
+`references/regular-update-announcement-samples.md`). 그래서 `arena-announce`와 같은
+방식(문구 고정 + 조건부 슬롯 분리)으로 새 모듈 `regular-update-announce-template.ts`를
+추가했다 — 기존 `buildAnnouncementDraft`(TextNotice 재포장)를 대체하지 않는다. 용도가
+다르다: 하나는 "실제로 디스코드에 올릴 릴리즈 공지 초안"이고, 다른 하나는 "인게임 공지판
+3개 언어가 서로 어긋나지 않는지 대사하는 도구"다. 다만 샘플이 2건뿐이라 `arena-announce`
+(3건, 전부 byte-identical 확인)보다 근거가 얇다 — 특히 "11:00 AM (KST)"가 항상 고정
+시각인지, 이번 두 릴리즈가 우연히 같았는지는 아직 구분이 안 된다(모듈 doc 참고).
 
 ## 도구 현황
 
 | 도구 | 위치 | 역할 |
 | --- | --- | --- |
-| `announce-fanout.ts` | `tools/9c/announce-fanout.ts` (bun) | CLI 본체 |
+| `announce-fanout.ts` | `tools/9c/announce-fanout.ts` (bun) | CLI — 인게임 공지판(TextNotice) 언어별 대사 |
 | 로직 | `tools/9c/lib/announce-fanout.ts` | 순수 함수(유닛 테스트 대상) — `release-guard.ts`의 `fetchNoticeHead`/`checkNoticeFilesAgree`/`checkNoticeEmptyContents` 재사용 |
 | 유닛 테스트 | `tools/9c/lib/announce-fanout.test.ts` | 초안 생성·언어별 길이 균형·불일치 검출, 네트워크 없이 실행 |
 | 라이브 검증기 | `tools/9c/fixtures/verify-announce-fanout.ts` | 실제 공지판 CDN을 직접 찔러 확인 |
+| `regular-update-announce.ts` | `tools/9c/regular-update-announce.ts` (bun) | CLI — 실제 릴리즈 공지(버전/날짜/요약/링크) 초안, 실측 샘플 2건 기반 고정 템플릿 |
+| 로직 | `tools/9c/lib/regular-update-announce-template.ts` | 순수 함수 — 요약 문구 존재·출시일 과거 여부·시각 관측치 이탈을 검사 |
+| 유닛 테스트 | `tools/9c/lib/regular-update-announce-template.test.ts` | 실제 공지 2건 골든 텍스트 대조, 네트워크 없이 실행 |
 
-실행: `bun test tools/9c/lib/announce-fanout.test.ts` (유닛), `bun run tools/9c/fixtures/verify-announce-fanout.ts` (라이브).
+실행: `bun test tools/9c/lib/announce-fanout.test.ts` / `bun test tools/9c/lib/regular-update-announce-template.test.ts` (유닛), `bun run tools/9c/fixtures/verify-announce-fanout.ts` (라이브).
+
+### `regular-update-announce.ts` 실행 예시
+
+```bash
+bun run "$(git rev-parse --show-toplevel)/tools/9c/regular-update-announce.ts" \
+  --apv 200480 --release-date 2026-09-22 \
+  --summary "This update includes new arena rewards and bug fixes."
+```
+
+`--release-date`는 `YYYY-MM-DD`(KST 기준 달력 날짜). 시각은 생략 시 관측 기본값
+`11:00 AM`을 쓰고, 다르면 `--release-time "3:00 PM"`처럼 덮어쓸 수 있다(그러면 WARN으로
+"관측치와 다름"만 표시 — 틀렸다는 뜻은 아니다). 요약 문구가 비어 있으면 FATAL, 출시일이
+오늘(KST)보다 과거면 WARN.
 
 ## 1. 무엇을 하는가
 
@@ -93,6 +113,24 @@ FATAL(언어별 본문이 비어 있음)이 있으면 exit 1.
 | 언어별 본문 비어있음 | 본문 있음 | — | 비어있음 |
 | 언어별 본문 길이 균형 | 최단/최장 비율 ≥ 20% | 최단이 최장의 20% 미만(번역 누락 의심 — ⚠️ 임계값 20%는 임의, §1-4 참고) | — |
 
+## 3-1. `regular-update-announce.ts` — 실제 릴리즈 공지 초안 (2026-09-03 추가)
+
+`TextNotice` 재포장과 별개로, 실제 디스코드에 올릴 릴리즈 공지 초안이 필요하면 이 CLI를
+쓴다. 실측 샘플 2건에서 역공학한 고정 템플릿(위 "`arena-announce`와 다른 점" 절 참고) —
+버전·날짜/시각·요약·링크 4개 슬롯 중 요약만 사람이 채운다.
+
+```bash
+bun run "$(git rev-parse --show-toplevel)/tools/9c/regular-update-announce.ts" \
+  --apv 200480 --release-date 2026-09-22 \
+  --summary "This update includes new arena rewards and bug fixes."
+```
+
+| 검사 | OK | WARN | FATAL |
+| --- | --- | --- | --- |
+| 요약 문구 존재 | 채워짐 | — | 비어 있음(자동 생성 안 함) |
+| 출시일이 과거가 아님(KST) | 오늘 이후 | 오늘보다 과거(오타·재사용 의심) | — |
+| 출시 시각이 관측치와 같음 | `11:00 AM`(생략 시 기본값) | 다른 값으로 명시(틀렸다는 뜻 아님, 확인만 요청) | — |
+
 ## 4. 범위 밖 (설계 문서 대비 의도적으로 뺀 것)
 
 - **휴장(점검)·이벤트 공지 초안(11단계)** — 읽기 권한 문제가 아니다(2026-09-01 정정, 위
@@ -100,8 +138,8 @@ FATAL(언어별 본문이 비어 있음)이 있으면 exit 1.
 - **실제 디스코드 게시** — 웹훅/봇 자체가 존재하지 않는다고 확인됨
   (`docs/9c-update-automation-permission-request.md` ⑤ 참고). 초안까지만 만들고, 게시는
   담당자가 `announcement` 채널에 직접 한다.
-- **새 마케팅 문구 창작** — 위 "무엇이 왜 이렇게 됐는지" 참고. 실제 과거 샘플이 없어 시도하지
-  않는다.
+- **새 마케팅 문구 창작** — `regular-update-announce.ts`의 요약 한 줄도 항상 사람이 쓴다.
+  실측 샘플 2건으로 확인된 건 "형식"이지 "문구를 대신 지어도 된다"가 아니다.
 - **이미지 초안** — 텍스트만 다룬다. 이미지 제작/삽입은 범위 밖.
 
 ## 5. 다음에 할 일
@@ -109,5 +147,6 @@ FATAL(언어별 본문이 비어 있음)이 있으면 exit 1.
 | 항목 | 상태 | 필요한 것 |
 | --- | --- | --- |
 | 휴장/이벤트 공지 초안(11단계) | 미착수 | 진짜 "휴장 문구"가 어디서 작성되는지 조사 필요 — Event.json은 원문이 아님(위 참고) |
-| 실제 과거 디스코드 공지 샘플 확보 | 미착수 | 담당자가 정규 업데이트 공지 샘플 몇 건 제공 → arena-announce 수준 고정 템플릿으로 재작업 가능 |
+| 실제 과거 디스코드 공지 샘플 확보 | ✅ 2026-09-03 해소 — 담당자가 2건 제공, `regular-update-announce-template.ts`로 구현 | — |
+| 릴리즈 공지 시각(`11:00 AM`)이 정말 고정 관행인지 | 미확정 — 관측 2건뿐 | 릴리즈가 몇 건 더 쌓이면 시각이 항상 같은지 재확인 |
 | 이미지 초안 | 미착수 | 별도 검토 필요 |
