@@ -110,7 +110,7 @@ export function checkRowColumnCounts(headers: readonly string[], rows: readonly 
 }
 
 /** 지정된 키 컬럼(보통 Id)이 비어 있는 행 검출. Backoffice에 그대로 올리면 key 컬럼이 빈
- *  값으로 `ISheet.Set`에 들어가 `ArgumentException`을 내는 실패 모드(부록 A-1, v200450)를
+ *  값으로 `ISheet.Set`에 들어가 그 행이 무시되거나 로드가 실패하는 모드(부록 A-1, v200450)를
  *  업로드 전에 미리 잡는다. keyColumn이 헤더에 없으면 스킵(WARN)이지 실패가 아니다 —
  *  시트마다 키 컬럼 이름이 다를 수 있어서 강제하지 않는다.
  *
@@ -142,7 +142,7 @@ export function checkKeyColumnNonEmpty(
       name,
       ok: false,
       level: "FATAL",
-      detail: `키 컬럼 "${keyColumn}"이 비어 있는 행: ${sample}행${more} — 업로드 시 ArgumentException으로 이어질 수 있습니다.`,
+      detail: `키 컬럼 "${keyColumn}"이 비어 있는 행: ${sample}행${more} — 그 행은 업로드 시 무시되거나(따옴표 없는 CSV — lib9c가 ","로 시작하는 줄을 스킵) 키 파싱 실패로 로드가 중단됩니다(따옴표 있는 CSV) — 어느 쪽이든 의도한 행이 반영되지 않습니다.`,
     };
   }
   return { id, name, ok: true, level: "OK", detail: `키 컬럼 "${keyColumn}" 전부 채워짐.` };
