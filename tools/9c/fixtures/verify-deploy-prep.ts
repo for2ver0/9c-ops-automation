@@ -5,6 +5,7 @@
  * read back a temp log file) behaves correctly against a real latest.json response.
  */
 import { fetchGitbookHead, fetchManifestApv, fetchClientBuildInfo } from "../lib/release-guard";
+import { readTextFileOrThrow } from "../lib/read-file";
 import { findRollbackTarget, planManageApvWorkflowInputs, buildDeployChecklist, type LatestJsonSnapshotEntry } from "../lib/deploy-prep";
 
 let failed = 0;
@@ -63,7 +64,9 @@ try {
   const older: LatestJsonSnapshotEntry = { observedAt: "2020-01-01T00:00:00Z", version: 1, clientTimestamp: "t1" };
   const newer: LatestJsonSnapshotEntry = { observedAt: "2020-01-02T00:00:00Z", version: 2, clientTimestamp: "t2" };
   await Bun.write(tmpPath, JSON.stringify(older) + "\n" + JSON.stringify(newer) + "\n");
-  const text = await Bun.file(tmpPath).text();
+  // 방금 쓴 파일이지만 헬퍼로 읽는다 — 쓰기가 실패했을 때 그냥 읽으면 거부가 전달되기 전에
+  // 프로세스가 끝나 "전부 통과"처럼 보이는 무음 exit 0이 된다(lib/read-file.ts 참고).
+  const text = await readTextFileOrThrow(tmpPath, "롤백 라운드트립 임시 로그");
   const log = text
     .split("\n")
     .map((l: string) => l.trim())

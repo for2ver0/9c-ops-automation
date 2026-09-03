@@ -1,6 +1,6 @@
 ---
 name: arena-season-preview
-description: Nine Chronicles 아레나 시즌을 ManageSeasons(시즌 관리 백오피스)에 등록하기 전에, 9개 입력값(Season Group ID·Start Block·Round Interval·Round Count·Arena Type·Required Medal Count·Total Prize·Battle/Refresh Policy ID)의 블록↔날짜 프리뷰와 서버가 검증하지 않는 항목(정책 ID↔시즌 타입 관측 일치, 직전 시즌과의 gap, round_interval 관측 기준값, Total Prize 관측 기준값)을 대사할 때 사용. "이번 시즌 등록 전에 확인해줘", "시즌 프리뷰 뽑아줘", "블록 날짜 환산해줘" 같은 요청에 사용. 실제 ManageSeasons 등록·시즌 저장은 이 스킬의 범위 밖 — 사람이 백오피스에서 직접 한다.
+description: Nine Chronicles 아레나 시즌을 ManageSeasons(시즌 관리 백오피스)에 등록하기 전에, 9개 입력값(Season Group ID·Start Block·Round Interval·Round Count·Arena Type·Required Medal Count·Total Prize·Battle/Refresh Policy ID)의 블록↔날짜 프리뷰와 서버가 검증하지 않는 항목(정책 ID↔시즌 타입 관측 일치, 직전 시즌과의 gap, round_interval 관측 기준값, Total Prize 관측 기준값, 그리고 2026-09-03 추가된 정의역 검사: 시작 블록 >= 0 · 종료 블록 >= 시작 블록)을 대사할 때 사용. "이번 시즌 등록 전에 확인해줘", "시즌 프리뷰 뽑아줘", "블록 날짜 환산해줘" 같은 요청에 사용. 실제 ManageSeasons 등록·시즌 저장은 이 스킬의 범위 밖 — 사람이 백오피스에서 직접 한다.
 ---
 
 # 아레나 시즌 프리뷰 · 등록 전 대사
@@ -194,3 +194,23 @@ FATAL을 억지로 만들면 매번 오탐이 나거나 거짓 확신을 준다.
 | gap 발생이 "무조건 오류"인지 "의도적 공백 허용"인지 | 담당자 정책 미확인(스펙 §6-2) | 담당자 확인 — 확인되면 이 스킬의 gap 문구를 조건부로 조정 |
 | ~~`--reward-table-pool` 연동 워크플로~~ | ✅ **해소됨** (2026-08-30) — §3-1에 실제 순서(RankingPool 확정 → 동일 값을 `--total-prize`/`--reward-table-pool`에 전달 → FATAL 없으면 ManageSeasons에 등록) 문서화, 라이브로 재현 확인 | — |
 | **`AdjustSeasonEndBlockAsync`로 종료 블록이 수동 조정된 시즌 감지** | 새로 발견(2026-08-30, 소스 확인) — 이 API가 라운드 재전개·공식 재검증·겹침 재검사 없이 `EndBlock`만 바꿔서, 이 스킬이 재현하는 `end = start+interval×count-1` 공식과 실제 DB 값이 어긋날 수 있음. 지금은 이 케이스를 감지하는 체크가 없음 | 라이브 `/seasons`의 `endBlock`이 이 스킬의 계산값과 다르면 WARN을 내는 체크 추가 — 다음 착수 시 반영 |
+
+## 입력 정의역 검사 (2026-09-03 "조용한 OK" 점검으로 추가)
+
+기존 대사는 전부 **"관측 기준값과 맞는가"**(정책 ID 지문, 직전 시즌 gap, round_interval,
+Total Prize)를 봤다. 그래서 물리적으로 불가능한 입력이 그대로 통과했다 — 실제로 돌려서
+확인한 것:
+
+| 입력 | 그때 결과 |
+| --- | --- |
+| `--season-start-block -5` | 시작일을 **2021-09-28**로 환산하고 전부 OK. 게다가 "직전 시즌 없음(조회 범위 밖)"으로 분류돼 **gap 검사까지 건너뛰어**, 정상 대조군보다 경고가 오히려 적게 나왔다 |
+| `--round-count 0` | **종료 블록(29,999,999)이 시작 블록(30,000,000)보다 앞선다.** "총 0일"로 표시되지만 FATAL 없음 |
+| `--round-interval 0` | 위와 같은 결과(종료 < 시작) |
+
+- `start-block-non-negative` — 시작 블록이 음수면 FATAL. 블록 번호는 음수가 될 수 없고,
+  음수면 과거 날짜로 환산돼 이후 대사가 전부 무의미해진다.
+- `end-block-after-start` — 종료 블록이 시작 블록보다 앞서면 FATAL. `round_count`나
+  `round_interval`이 0 이하일 때 잡힌다.
+
+두 검사는 **외부 관측치가 필요 없는 순수 내부 정합성**이라, 이 저장소가 경계하는 "근거 없이
+지어낸 임계값" 문제가 없다.

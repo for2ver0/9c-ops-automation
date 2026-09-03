@@ -28,6 +28,7 @@ import {
   type SeasonCacheHealth,
   type SkillSection,
 } from "./lib/arena-season-checklist";
+import { readJsonFileOrThrow } from "./lib/read-file";
 import { getNetworkInfo, type ArenaNetwork } from "./lib/arena-network";
 import { fetchSeasons } from "./lib/arena-reward-sources";
 
@@ -80,8 +81,9 @@ async function loadSection(
   parse: (raw: unknown) => SkillSection,
 ): Promise<SkillSection> {
   if (!path) return { skill: label, checks: null, partial: false };
-  const raw = JSON.parse(await Bun.file(path).text());
-  return parse(raw);
+  // 존재 확인을 반드시 먼저 한다 — 없는 파일을 그냥 읽으면 읽기 거부가 .catch에 전달되기
+  // 전에 프로세스가 끝나 출력 0바이트 exit 0이 된다(실측 근거·재발 이력은 lib/read-file.ts).
+  return parse(await readJsonFileOrThrow(path, label));
 }
 
 async function main() {

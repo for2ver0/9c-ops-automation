@@ -201,6 +201,34 @@ async function main() {
 
   const invariants: Invariant[] = [];
 
+  // -- 입력 정의역 검사 (2026-09-03 추가) --
+  // 기존 대사는 전부 "관측 기준값과 맞는가"(정책 ID·round_interval·Total Prize·직전 시즌 gap)만
+  // 봤기 때문에, 물리적으로 불가능한 입력이 그대로 통과했다 — 실측:
+  //   --season-start-block -5 → 시작일을 2021-09-28로 계산하고 전부 OK. 게다가 "직전 시즌
+  //     없음"으로 분류돼 gap 검사까지 건너뛰어, 대조군보다 경고가 오히려 적었다.
+  //   --round-count 0 → 종료 블록(29,999,999)이 시작 블록(30,000,000)보다 **앞선다**. FATAL 없음.
+  // 아래 두 검사는 외부 관측치가 필요 없는 순수 내부 정합성이라 근거를 지어낼 여지도 없다.
+  invariants.push({
+    id: "start-block-non-negative",
+    name: "시작 블록 >= 0",
+    ok: startBlock >= 0,
+    detail:
+      startBlock >= 0
+        ? startBlock.toLocaleString()
+        : `${startBlock} — 블록 번호는 음수가 될 수 없습니다(과거 날짜로 환산돼 대사가 무의미해집니다).`,
+    level: startBlock >= 0 ? "OK" : "FATAL",
+  });
+  invariants.push({
+    id: "end-block-after-start",
+    name: "종료 블록 >= 시작 블록",
+    ok: endBlock >= startBlock,
+    detail:
+      endBlock >= startBlock
+        ? `${startBlock.toLocaleString()} → ${endBlock.toLocaleString()}`
+        : `${startBlock.toLocaleString()} → ${endBlock.toLocaleString()} — 종료가 시작보다 앞섭니다. round_count(${args.roundCount})나 round_interval(${args.roundInterval})이 0 이하가 아닌지 확인하세요.`,
+    level: endBlock >= startBlock ? "OK" : "FATAL",
+  });
+
   // -- gap check against the previous season on this network --
   const seasons = await fetchSeasons(getNetworkInfo(args.network).arenaServiceHost ?? "");
   const previous = seasons

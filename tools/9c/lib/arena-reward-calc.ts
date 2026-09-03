@@ -474,6 +474,44 @@ export interface Invariant {
 export function checkInvariants(config: RewardConfig, tierGroups: readonly TierGroup[]): Invariant[] {
   const invariants: Invariant[] = [];
 
+  // 입력 정의역 검사 (2026-09-03 추가). 기존 불변식은 "합이 맞는가"만 봤기 때문에, 풀이나
+  // 배수가 0·음수여도 전부 OK로 통과했다 — 실측:
+  //   --pool 0        → 전원 0 NCG 표, 불변식 4개 전부 OK, exit 0
+  //   --pool -400000  → 전원 마이너스 지급 표(1-1 그룹 -28,000), 역시 전부 OK
+  //   --staking-lv2 -2 → 그 등급만 -9,334 NCG, 역시 전부 OK
+  // 합 검사는 이런 입력에서도 "합이 맞다"고 답하므로(0의 합은 0, 음수의 합은 그 음수) 구조적으로
+  // 못 잡는다. 이 표는 그대로 PNG가 되어 공지로 나가므로 계산 전에 막는다.
+  //
+  // 배수 하한을 1이 아니라 0 초과로 잡은 근거: 골든 픽스처의 실제 관측값이 stakingLv2=0.5,
+  // stakingLv3=1, couragePass=1(Odin S39)·1.2(Heimdall CS9)로, 1 미만 배수가 실재한다.
+  invariants.push({
+    id: "pool-positive",
+    name: "RankingPool > 0",
+    ok: config.rankingPool > 0,
+    detail:
+      config.rankingPool > 0
+        ? String(config.rankingPool)
+        : `${config.rankingPool} — 0이나 음수 풀로는 지급 표가 성립하지 않습니다(전원 0원 또는 마이너스 지급).`,
+    level: config.rankingPool > 0 ? "OK" : "FATAL",
+  });
+
+  const multipliers: Array<[string, number]> = [
+    ["stakingLv2Multiplier", config.stakingLv2Multiplier],
+    ["stakingLv3Multiplier", config.stakingLv3Multiplier],
+    ["couragePassMultiplier", config.couragePassMultiplier],
+  ];
+  const badMultipliers = multipliers.filter(([, v]) => !(v > 0));
+  invariants.push({
+    id: "multipliers-positive",
+    name: "보너스 배수 3종 > 0",
+    ok: badMultipliers.length === 0,
+    detail:
+      badMultipliers.length === 0
+        ? multipliers.map(([k, v]) => `${k}=${v}`).join(", ")
+        : `${badMultipliers.map(([k, v]) => `${k}=${v}`).join(", ")} — 0이나 음수 배수는 해당 등급에 0원/마이너스 지급을 만듭니다(1 미만 자체는 정상: 실측 stakingLv2=0.5).`,
+    level: badMultipliers.length === 0 ? "OK" : "FATAL",
+  });
+
   const playerSum = config.groupDefinitions.reduce((sum, g) => sum + g.playerCount, 0);
   invariants.push({
     id: "players-sum",

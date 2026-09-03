@@ -44,6 +44,7 @@ import {
   parseStakingCsv,
   resolveSeasonId,
 } from "./lib/arena-reward-sources";
+import { readJsonFileOrThrow, readTextFileOrThrow } from "./lib/read-file";
 import { getNetworkInfo, requireArenaServiceHost, requireMimirHost, type ArenaNetwork } from "./lib/arena-network";
 import { buildChampionshipTicketLines, buildSeasonTicketLines, renderRewardTablePng } from "./lib/arena-reward-png";
 import { estimateDateForBlock, measureBlockTimeModel } from "./lib/arena-block-time";
@@ -160,7 +161,7 @@ interface ConfigFile {
 async function resolveConfig(args: Args): Promise<RewardConfig> {
   let file: Partial<ConfigFile> = {};
   if (args.configFile) {
-    file = JSON.parse(await Bun.file(args.configFile).text());
+    file = (await readJsonFileOrThrow(args.configFile, "--config")) as Partial<ConfigFile>;
   }
 
   const pool = args.pool ?? file.pool;
@@ -203,7 +204,7 @@ async function resolveConfig(args: Args): Promise<RewardConfig> {
 }
 
 async function loadRanking(args: Args, network?: ArenaNetwork, seasonId?: number): Promise<RankingEntry[]> {
-  if (args.rankingCsv) return parseRankingCsv(await Bun.file(args.rankingCsv).text());
+  if (args.rankingCsv) return parseRankingCsv(await readTextFileOrThrow(args.rankingCsv, "--ranking-csv"));
   if (!network || seasonId === undefined) {
     throw new Error("랭킹 데이터가 없습니다: --ranking-csv를 주거나 --network/--season-type/--season-group-id로 라이브 조회하세요.");
   }
@@ -213,7 +214,7 @@ async function loadRanking(args: Args, network?: ArenaNetwork, seasonId?: number
 }
 
 async function loadStaking(args: Args, network?: ArenaNetwork, seasonId?: number): Promise<StakeEntry[]> {
-  if (args.stakingCsv) return parseStakingCsv(await Bun.file(args.stakingCsv).text());
+  if (args.stakingCsv) return parseStakingCsv(await readTextFileOrThrow(args.stakingCsv, "--staking-csv"));
   if (!network || seasonId === undefined) {
     throw new Error("스테이킹 데이터가 없습니다: --staking-csv를 주거나 --network로 garage 스냅샷을 조회하세요.");
   }
@@ -222,7 +223,7 @@ async function loadStaking(args: Args, network?: ArenaNetwork, seasonId?: number
 }
 
 async function loadCouragePass(args: Args): Promise<CouragePassEntry[]> {
-  if (args.couragePassCsv) return parseCouragePassCsv(await Bun.file(args.couragePassCsv).text());
+  if (args.couragePassCsv) return parseCouragePassCsv(await readTextFileOrThrow(args.couragePassCsv, "--courage-pass-csv"));
   // No live path yet — the SeasonPass admin API needs a JWT secret this environment lacks.
   // Treat "no data" as zero premium users rather than aborting, but say so loudly: silently
   // proceeding with an empty courage-pass set would understate every affected player's payout.

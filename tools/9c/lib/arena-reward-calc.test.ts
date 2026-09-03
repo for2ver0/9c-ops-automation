@@ -256,3 +256,67 @@ describe("calculateRewards address matching", () => {
     expect(results[0].hasCouragePass).toBe(true);
   });
 });
+
+// --- 2026-09-03 "조용한 OK" 점검 회귀 ------------------------------------------------------
+// 기존 불변식은 "합이 맞는가"만 봤기 때문에 풀·배수가 0이나 음수여도 전부 OK로 통과했다.
+// 합 검사는 구조적으로 이걸 못 잡는다(0의 합은 0, 음수의 합은 그 음수라 "합이 맞다"가 참).
+// 실측: --pool 0 → 전원 0원 표 / --pool -400000 → 1-1 그룹 -28,000 표 / --staking-lv2 -2 →
+// 그 등급만 -9,334. 셋 다 불변식 전부 OK에 exit 0이었고, 그 표가 그대로 PNG·공지가 된다.
+
+const OK_GROUPS = [
+  { playerCount: 1, rewardPercentage: 7 },
+  { playerCount: 1, rewardPercentage: 8 },
+  { playerCount: 3, rewardPercentage: 7 },
+  { playerCount: 5, rewardPercentage: 9 },
+  { playerCount: 10, rewardPercentage: 12 },
+  { playerCount: 30, rewardPercentage: 18 },
+  { playerCount: 50, rewardPercentage: 18 },
+  { playerCount: 100, rewardPercentage: 12 },
+  { playerCount: 150, rewardPercentage: 6 },
+  { playerCount: 150, rewardPercentage: 3 },
+];
+
+function configWith(over: Partial<RewardConfig>): RewardConfig {
+  return {
+    rankingPool: 400_000,
+    stakingLv2Multiplier: 0.5,
+    stakingLv3Multiplier: 1.0,
+    couragePassMultiplier: 1.0,
+    groupDefinitions: OK_GROUPS,
+    ...over,
+  };
+}
+
+describe("입력 정의역 불변식 (2026-09-03 추가)", () => {
+  test("풀이 0이면 FATAL — 전원 0원 표가 '정상'으로 나오던 자리", () => {
+    const config = configWith({ rankingPool: 0 });
+    const inv = checkInvariants(config, generateTierGroups(config)).find((i) => i.id === "pool-positive")!;
+    expect(inv.level).toBe("FATAL");
+  });
+
+  test("풀이 음수면 FATAL — 전원 마이너스 지급 표가 나오던 자리", () => {
+    const config = configWith({ rankingPool: -400_000 });
+    const inv = checkInvariants(config, generateTierGroups(config)).find((i) => i.id === "pool-positive")!;
+    expect(inv.level).toBe("FATAL");
+  });
+
+  test("배수가 음수면 FATAL — 그 등급만 마이너스 지급되던 자리", () => {
+    const config = configWith({ stakingLv2Multiplier: -2 });
+    const inv = checkInvariants(config, generateTierGroups(config)).find((i) => i.id === "multipliers-positive")!;
+    expect(inv.level).toBe("FATAL");
+    expect(inv.detail).toContain("stakingLv2Multiplier=-2");
+  });
+
+  test("배수가 0이어도 FATAL — 그 등급이 0원이 된다", () => {
+    const config = configWith({ couragePassMultiplier: 0 });
+    const inv = checkInvariants(config, generateTierGroups(config)).find((i) => i.id === "multipliers-positive")!;
+    expect(inv.level).toBe("FATAL");
+  });
+
+  test("1 미만 배수는 정상 — 실측 관측값(stakingLv2=0.5, couragePass=1.2)을 막으면 안 된다", () => {
+    const config = configWith({ stakingLv2Multiplier: 0.5, stakingLv3Multiplier: 1, couragePassMultiplier: 1.2 });
+    const invs = checkInvariants(config, generateTierGroups(config));
+    expect(invs.find((i) => i.id === "multipliers-positive")!.level).toBe("OK");
+    expect(invs.find((i) => i.id === "pool-positive")!.level).toBe("OK");
+  });
+});
