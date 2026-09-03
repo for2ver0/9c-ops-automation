@@ -43,7 +43,7 @@ macOS 터미널(zsh/bash)은 이 명령어들이 쓰는 문법(`$(...)`, 큰따�
 
 ## 2. 정규 운영 업데이트
 
-### 2.0 처리 흐름 (사용자 설명, 2026-09-03)
+### 2.1 처리 흐름 (사용자 설명, 2026-09-03)
 
 담당자가 실제로 겪는 정규 업데이트 운영은 이런 순서다 — 업데이트 타겟(어드벤처·아레나·
 이벤트 던전·인피니트 타워 등)이 뭐든 이 7단계는 공통이다. **담당자는 명령어를 몰라도 된다** —
@@ -59,7 +59,7 @@ Claude에게 말로 요청하면 [`regular-update` 에이전트](.claude/agents/
 | ③ | 이상 없으면 데이터 시트를 인터널(백오피스 스테이징)에 배포 | [`datasheet-release-gate`](.claude/skills/datasheet-release-gate/SKILL.md) (업로드 전 게이트) | 부분 구현 — ②의 두 검증을 시트별로 집계해 "올려도 되는가"만 판단. 실제 스테이징 업로드 자체는 D4 원칙상 항상 사람이 직접(백오피스 API를 이 환경에서 확인 못 함) |
 | ④ | QA 담당자가 인터널 배포본을 리뷰 | [`qa-checklist`](.claude/skills/qa-checklist/SKILL.md) | 부분 구현 — 시트 전/후 diff만. "무엇을 테스트해야 하는지" 매핑은 미착수 |
 | ⑤ | QA 피드백 반영해 ③~④ 반복 → 이상 없으면 깃북에 릴리즈 노트 작성 | [`release-notes`](.claude/skills/release-notes/SKILL.md) | 부분 구현 — 초안 정리까지, 실제 깃북 게시는 사람 |
-| ⑥ | agent가 업데이트 공지글을 디스코드에 공지 | [`announce-fanout`](.claude/skills/announce-fanout/SKILL.md) | 부분 구현 — 정규 업데이트 공지 변환만, 초안까지. 실제 게시는 항상 사람(자동 게시 경로 자체가 없음) |
+| ⑥ | agent가 업데이트 공지글을 디스코드에 공지 | [`announce-fanout`](.claude/skills/announce-fanout/SKILL.md) | 부분 구현 — 2026-09-03 확보한 실측 샘플 2건으로 실제 릴리즈 공지(버전/날짜/요약/링크) 고정 템플릿(`regular-update-announce`)까지 완성, arena-announce와 같은 방식. 인게임 공지판(TextNotice) 언어별 대사는 별도 도구로 유지. 실제 게시는 항상 사람(자동 게시 경로 자체가 없음) |
 | ⑦ | agent가 최종 컨펌된 데이터 시트를 메인넷에 배포 | [`release-guard`](.claude/skills/release-guard/SKILL.md) + [`deploy-prep`](.claude/skills/deploy-prep/SKILL.md) | 부분 구현 — 배포 전/후 체크리스트·일관성 대조까지, 실제 Manage Apv 실행은 항상 사람(D4) |
 
 ②·③은 2026-09-03에 새로 채운 공백이다 — 그 전까지는 "기획서와 시트가 맞는지"·"인터널
@@ -72,7 +72,7 @@ Claude에게 말로 요청하면 [`regular-update` 에이전트](.claude/agents/
 2026-09-03), 실제 업로드는 D4 원칙(자동화는 라이브를 바꾸지 않는다)상 여전히 사람이 하되
 그 직전 게이트만 자동화했다 — `arena-season-checklist`와 같은 "계산 없이 집계만" 패턴.
 
-### 2.1 8개 스크립트 원설계 대비 현황
+### 2.2 8개 스크립트 원설계 대비 현황
 
 원설계는 8개 스크립트(자동화는 "정제 이슈 초안"까지만 만들고, 검토·승인·배포 실행은 항상
 사람)로 그려졌다. 처음엔 대부분이 권한 승인 대기 중이라 여겼는데, 실제로 확인해보니 애초에
@@ -91,7 +91,7 @@ Claude에게 말로 요청하면 [`regular-update` 에이전트](.claude/agents/
 | [`datasheet-release-gate`](.claude/skills/datasheet-release-gate/SKILL.md) | 인터널(백오피스 스테이징) 배포 전, datasheet-validate + spec-datasheet-check 결과를 시트별로 집계하는 게이트 | 2026-09-03 신규, 부분 구현 — 집계만. 실제 스테이징 업로드 자동화는 D4 원칙상 범위 밖 |
 | [`deploy-prep`](.claude/skills/deploy-prep/SKILL.md) | 배포 전/후 체크리스트 + `latest.json` 롤백 스냅샷 + APV 결번 검사(release-guard 로직 재사용) | 부분 구현 — Manage Apv 워크플로 실제 트리거·PR/브랜치/태그/changelog 자동화는 D4 원칙(자동화가 라이브를 안 바꿈)상 범위 밖, 입력값 계산까지만 하고 항상 사람이 실행 |
 | [`qa-checklist`](.claude/skills/qa-checklist/SKILL.md) | 시트 CSV 전/후 diff → 추가·삭제·변경 행 QA 체크리스트 | 부분 구현 — "무엇이 바뀌었는지"만. "그래서 무엇을 테스트해야 하는지"(시트별 기능 매핑)는 lib9c 도메인 지식 필요로 미착수 |
-| [`announce-fanout`](.claude/skills/announce-fanout/SKILL.md) | 인게임 공지(EN/KR/JP) → 디스코드 공지 초안 재포장 + 언어별 불일치 검사 | 부분 구현 — 정규 업데이트 공지 변환만. 휴장/이벤트 공지 초안은 미착수 — Event.json 읽기 자체는 더 이상 안 막혀 있지만(2026-09-01 확인), 그 파일엔 배너 메타데이터만 있고 초안화할 문구가 없음 |
+| [`announce-fanout`](.claude/skills/announce-fanout/SKILL.md) | 인게임 공지(EN/KR/JP) 언어별 불일치 검사 재포장 + 실제 릴리즈 공지(버전/날짜/요약/링크) 고정 템플릿 초안 | 부분 구현 — 2026-09-03: 담당자 제공 실측 샘플 2건으로 실제 릴리즈 공지 고정 템플릿(`regular-update-announce-template.ts`, arena-announce와 같은 방식)을 추가, 기존 TextNotice 재포장 도구(`announce-fanout.ts`)는 용도가 달라 별도 유지. 휴장/이벤트 공지 초안은 미착수 — Event.json 읽기 자체는 더 이상 안 막혀 있지만(2026-09-01 확인), 그 파일엔 배너 메타데이터만 있고 초안화할 문구가 없음 |
 | [`spec-to-datasheet`](.claude/skills/spec-to-datasheet/SKILL.md) | 기획서 계획 JSON ↔ 현재 시트 대조 → 입력 작업 지시서(현재값 → 제안값) | 2026-09-03 신규, 부분 구현 — 지시서 생성·새 행 빈 컬럼 검출까지. 노션 API 직접 읽기는 미착수지만 지금 워크플로(기획서를 사람이 직접 전달)엔 불필요. 계획 JSON은 `spec-datasheet-check`의 assertions와 같은 형식이라 작성 후 검증까지 그대로 이어짐 |
 | `datasheet-to-csv` | 밸런스 시트 파이프라인 나머지 1종(1차 필수) | 미착수 — lib9c push 확인(⑨) + 기존 CSV 익스포트 도구 소유·운영 실태 조사(⑦) 필요 |
 | [`release-notes`](.claude/skills/release-notes/SKILL.md) | 버전+카테고리별 항목 → 깃북 붙여넣기용 릴리즈 노트 초안 | 부분 구현 — 버전 대사(+10 관행, 중복 게시 방지)·섹션 정리만. ⑥ 확인(깃북 에디터 직접 입력, GitHub 토큰 불필요)으로 착수. 문구는 짓지 않고 사람이 준 것만 정리 — 정확한 마크다운 문법은 원본 저장소(`nine-chronicles-docs`, 비공개) 미확인으로 검증 못 함 |
@@ -101,7 +101,9 @@ Claude에게 말로 요청하면 [`regular-update` 에이전트](.claude/agents/
 `tools/9c/lib/spec-datasheet-check.ts`, `tools/9c/datasheet-release-gate.ts` +
 `tools/9c/lib/datasheet-release-gate.ts`, `tools/9c/deploy-prep.ts` + `tools/9c/lib/deploy-prep.ts`,
 `tools/9c/qa-checklist.ts` + `tools/9c/lib/qa-checklist.ts`, `tools/9c/announce-fanout.ts` +
-`tools/9c/lib/announce-fanout.ts`, `tools/9c/release-notes.ts` + `tools/9c/lib/release-notes.ts`.
+`tools/9c/lib/announce-fanout.ts`(TextNotice 재포장), `tools/9c/regular-update-announce.ts` +
+`tools/9c/lib/regular-update-announce-template.ts`(실제 릴리즈 공지 고정 템플릿),
+`tools/9c/release-notes.ts` + `tools/9c/lib/release-notes.ts`.
 CSV 파서(`tools/9c/lib/csv.ts`)는 datasheet-validate·qa-checklist·spec-datasheet-check가
 공유한다(순환 참조 방지용 분리). release-guard는 실행할 때마다 결과가 바뀌는 진단 도구다 —
 2026-08-30/31 조사 시점엔 실제 프로덕션 상태(인게임 공지판이 깃북보다 2차수 뒤처진 상태)를
