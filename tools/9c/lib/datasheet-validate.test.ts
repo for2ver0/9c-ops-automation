@@ -9,6 +9,7 @@ import {
   checkRequestedTabIsNotDefault,
   checkEmptyHeaders,
   checkGvizHeadersParam,
+  withGvizHeaders,
   checkRowCountAgainstBaseline,
   checkBaselineDiff,
   overallLevel,
@@ -430,5 +431,108 @@ describe("checkGvizHeadersParam", () => {
 
   test("gviz가 아닌 URL이면 해당 없음", () => {
     expect(checkGvizHeadersParam("https://example.com/data.csv").level).toBe("OK");
+  });
+});
+
+describe("withGvizHeaders", () => {
+  const gviz = "https://docs.google.com/spreadsheets/d/ID/gviz/tq?tqx=out:csv&sheet=CollectionSheet";
+
+  test("gviz URL에 headers가 없으면 headers=1을 붙인다", () => {
+    const r = withGvizHeaders(gviz);
+    expect(r.added).toBe(true);
+    expect(new URL(r.url).searchParams.get("headers")).toBe("1");
+  });
+
+  test("sheet 등 기존 파라미터는 보존한다", () => {
+    const params = new URL(withGvizHeaders(gviz).url).searchParams;
+    expect(params.get("sheet")).toBe("CollectionSheet");
+    expect(params.get("tqx")).toBe("out:csv");
+  });
+
+  test("이미 headers가 있으면 값을 덮어쓰지 않는다", () => {
+    const r = withGvizHeaders(`${gviz}&headers=2`);
+    expect(r.added).toBe(false);
+    expect(new URL(r.url).searchParams.get("headers")).toBe("2");
+  });
+
+  // 값이 비었거나 숫자가 아니면 구글이 무시하고 헤더 행 수를 추측한다 — 실측으로 확인:
+  // "&headers=" 로 요청하면 895행짜리 CollectionSheet가 13행이 된다. 그래서 실수로 보고 덮는다.
+  test("headers 값이 비어 있으면 1로 덮어쓴다", () => {
+    const r = withGvizHeaders(`${gviz}&headers=`);
+    expect(r.added).toBe(true);
+    expect(new URL(r.url).searchParams.get("headers")).toBe("1");
+  });
+
+  test("headers 값이 숫자가 아니면 1로 덮어쓴다", () => {
+    const r = withGvizHeaders(`${gviz}&headers=yes`);
+    expect(r.added).toBe(true);
+    expect(new URL(r.url).searchParams.get("headers")).toBe("1");
+  });
+
+  test("headers=0처럼 유효한 숫자는 그대로 존중한다", () => {
+    const r = withGvizHeaders(`${gviz}&headers=0`);
+    expect(r.added).toBe(false);
+    expect(new URL(r.url).searchParams.get("headers")).toBe("0");
+  });
+
+  test("gviz가 아닌 URL은 그대로 둔다", () => {
+    const r = withGvizHeaders("https://example.com/data.csv");
+    expect(r.added).toBe(false);
+    expect(r.url).toBe("https://example.com/data.csv");
+  });
+
+  test("URL로 파싱되지 않으면 그대로 둔다", () => {
+    const r = withGvizHeaders("not a url");
+    expect(r.added).toBe(false);
+    expect(r.url).toBe("not a url");
+  });
+});
+
+describe("checkGvizHeadersParam — 자동 보충", () => {
+  const gviz = "https://docs.google.com/spreadsheets/d/ID/gviz/tq?tqx=out:csv&sheet=CollectionSheet";
+
+  test("CLI가 자동으로 붙였으면 WARN이 아니라 OK", () => {
+    const c = checkGvizHeadersParam(gviz, true);
+    expect(c.level).toBe("OK");
+    expect(c.detail).toContain("자동으로");
+  });
+
+  test("headers 값이 비어 있으면 지정된 것으로 보지 않는다", () => {
+    expect(checkGvizHeadersParam(`${gviz}&headers=`, false).level).toBe("WARN");
+  });
+
+  test("자동 보충을 쓰지 않는 호출자에겐 여전히 WARN", () => {
+    expect(checkGvizHeadersParam(gviz, false).level).toBe("WARN");
+  });
+});
+
+describe("withGvizHeaders — 데이터 요청과 폴백 대조 요청의 조건 일치", () => {
+  // CLI는 같은 URL을 두 번 받는다: 요청한 탭(sheet=있음)과 기본 탭(sheet=뺀 것). 두 응답을
+  // 본문으로 대조해 탭 이름 오타를 잡으므로, headers 조건이 서로 다르면 대조가 의미를 잃는다.
+  const withSheet = "https://docs.google.com/spreadsheets/d/ID/gviz/tq?tqx=out:csv&sheet=CollectionSheet";
+  const dropSheet = (u: string) => {
+    const p = new URL(u);
+    p.searchParams.delete("sheet");
+    return p.toString();
+  };
+  const headersOf = (u: string) => new URL(withGvizHeaders(u).url).searchParams.get("headers");
+
+  test("원본에 headers가 없으면 양쪽 다 1이 된다", () => {
+    expect(headersOf(withSheet)).toBe("1");
+    expect(headersOf(dropSheet(withSheet))).toBe("1");
+  });
+
+  test("원본이 headers=2면 양쪽 다 2로 유지된다", () => {
+    const u = `${withSheet}&headers=2`;
+    expect(headersOf(u)).toBe("2");
+    expect(headersOf(dropSheet(u))).toBe("2");
+  });
+
+  test("특수문자가 든 탭 이름도 값이 보존된다", () => {
+    const tab = "EventScheduleSheet[Heimdall]";
+    const u = `https://docs.google.com/spreadsheets/d/ID/gviz/tq?tqx=out:csv&sheet=${tab}`;
+    const params = new URL(withGvizHeaders(u).url).searchParams;
+    expect(params.get("sheet")).toBe(tab);
+    expect(params.get("tqx")).toBe("out:csv");
   });
 });

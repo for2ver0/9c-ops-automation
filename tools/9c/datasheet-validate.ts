@@ -22,7 +22,14 @@
  *
  *   bun run tools/9c/datasheet-validate.ts --csv ./x.csv --json
  */
-import { parseCsv, runStructuralChecks, overallLevel, type Check, type ParsedCsv } from "./lib/datasheet-validate";
+import {
+  parseCsv,
+  runStructuralChecks,
+  overallLevel,
+  withGvizHeaders,
+  type Check,
+  type ParsedCsv,
+} from "./lib/datasheet-validate";
 
 interface Args {
   csvPath?: string;
@@ -75,15 +82,16 @@ function parseArgs(argv: string[]): Args {
   return args;
 }
 
-async function readInput(args: Args): Promise<string> {
+async function readInput(args: Args): Promise<{ text: string; autoAddedHeaders: boolean }> {
   if (args.url) {
-    const res = await fetch(args.url);
-    if (!res.ok) throw new Error(`GET ${args.url} -> HTTP ${res.status}`);
-    return res.text();
+    const { url, added } = withGvizHeaders(args.url);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`GET ${url} -> HTTP ${res.status}`);
+    return { text: await res.text(), autoAddedHeaders: added };
   }
   const file = Bun.file(args.csvPath!);
   if (!(await file.exists())) throw new Error(`파일을 찾을 수 없습니다: ${args.csvPath}`);
-  return file.text();
+  return { text: await file.text(), autoAddedHeaders: false };
 }
 
 /**
@@ -102,8 +110,10 @@ async function fetchDefaultTabText(url: string | undefined): Promise<string | nu
   }
   if (!parsed.searchParams.has("sheet")) return null;
   parsed.searchParams.delete("sheet");
+  // 요청 URL과 같은 조건으로 받아야 본문 대조가 의미 있으므로 여기도 headers=1을 맞춘다.
+  const { url: defaultUrl } = withGvizHeaders(parsed.toString());
   try {
-    const res = await fetch(parsed.toString());
+    const res = await fetch(defaultUrl);
     if (!res.ok) return null;
     return await res.text();
   } catch {
@@ -134,7 +144,7 @@ async function readBaselineCsv(path: string | undefined): Promise<ParsedCsv | nu
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const text = await readInput(args);
+  const { text, autoAddedHeaders } = await readInput(args);
   const csv = parseCsv(text);
 
   if (csv.headers.length === 0) {
@@ -150,6 +160,7 @@ async function main() {
     requestedText: requestedTextForTabCheck(args, text),
     defaultTabText,
     url: args.url ?? null,
+    autoAddedHeaders,
   });
   const summary = {
     source: args.url ?? args.csvPath!,

@@ -149,6 +149,35 @@ export function checkKeyColumnNonEmpty(
 }
 
 /**
+ * gviz export URL에 `headers=1`을 보충한다 (2026-09-03 추가).
+ *
+ * 이 파라미터가 없으면 구글이 헤더 행 수를 추측하는데, 그 추측이 빗나가면 데이터 행이 헤더
+ * 한 줄로 접혀 대량 유실이 난다(실측: CollectionSheet 895행 → 13행). 원래는 검사만 하고
+ * 사용자에게 "붙여서 다시 돌리라"고 안내했는데, 도구가 할 수 있는 일을 사람에게 떠넘기는
+ * 설계였다. 이제 CLI가 요청 직전에 자동으로 붙인다.
+ *
+ * 건드리지 않는 경우: gviz export URL이 아닐 때, 이미 `headers`에 **유효한 값**이 있을 때
+ * (사용자가 headers=2를 의도했을 수 있다), URL로 파싱되지 않을 때.
+ *
+ * 값이 비었거나(`&headers=`) 숫자가 아니면 의도가 아니라 실수로 보고 1로 덮어쓴다. 구글은
+ * 그런 값을 무시하고 헤더 행 수를 추측해버리므로(실측: `&headers=`로 요청하면 895행짜리
+ * CollectionSheet가 다시 13행이 된다), 존중하면 이 함수가 막으려던 유실이 그대로 재발한다.
+ */
+export function withGvizHeaders(url: string): { url: string; added: boolean } {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { url, added: false };
+  }
+  if (!parsed.pathname.includes("/gviz/tq")) return { url, added: false };
+  const current = parsed.searchParams.get("headers");
+  if (current !== null && /^[0-9]+$/.test(current)) return { url, added: false };
+  parsed.searchParams.set("headers", "1");
+  return { url: parsed.toString(), added: true };
+}
+
+/**
  * gviz URL에 `headers=1`이 빠진 경우 경고 (2026-09-03 추가). 구글 gviz는 헤더 행이 몇 줄인지
  * **추측**하는데, 추측에 실패하면 데이터 행들을 헤더 한 줄로 접어버린다. 실측(2026-09-03,
  * 실제 밸런스 시트 `CollectionSheet`):
@@ -162,7 +191,7 @@ export function checkKeyColumnNonEmpty(
  * URL 한 조각이 원인이다). 행 수가 0은 아니라서 `checkHasDataRows`로도 안 걸리고, 기준값이
  * 없으면 급감 검사로도 안 걸린다.
  */
-export function checkGvizHeadersParam(url: string | null): Check {
+export function checkGvizHeadersParam(url: string | null, autoAdded = false): Check {
   const id = "gviz-headers-param";
   const name = "gviz headers 파라미터";
   if (url === null) {
@@ -177,7 +206,17 @@ export function checkGvizHeadersParam(url: string | null): Check {
   if (!parsed.pathname.includes("/gviz/tq")) {
     return { id, name, ok: true, level: "OK", detail: "gviz export URL이 아니라 해당 없음." };
   }
-  if (!parsed.searchParams.has("headers")) {
+  const headersValue = parsed.searchParams.get("headers");
+  if (headersValue === null || !/^[0-9]+$/.test(headersValue)) {
+    if (autoAdded) {
+      return {
+        id,
+        name,
+        ok: true,
+        level: "OK",
+        detail: "URL에 headers=1이 없어 요청할 때 자동으로 붙였습니다 (원본 URL은 그대로 둡니다).",
+      };
+    }
     return {
       id,
       name,
@@ -187,7 +226,7 @@ export function checkGvizHeadersParam(url: string | null): Check {
         "gviz URL에 headers=1이 없습니다 — 구글이 헤더 행 수를 잘못 추측하면 데이터 행이 헤더 한 줄로 접혀 대량 유실됩니다(실측: CollectionSheet 895행 → 13행). URL 끝에 &headers=1을 붙여 다시 확인하세요.",
     };
   }
-  return { id, name, ok: true, level: "OK", detail: `headers=${parsed.searchParams.get("headers")} 지정됨.` };
+  return { id, name, ok: true, level: "OK", detail: `headers=${headersValue} 지정됨.` };
 }
 
 /**
@@ -428,6 +467,8 @@ export function runStructuralChecks(
     defaultTabText?: string | null;
     /** `--url`로 받은 원본 URL(로컬 파일이면 null). gviz headers 파라미터 점검에 쓴다. */
     url?: string | null;
+    /** 위 URL에 headers=1이 없어 CLI가 요청 때 자동으로 붙였는지. */
+    autoAddedHeaders?: boolean;
   },
 ): Check[] {
   const baselineCsv = opts.baselineCsv ?? null;
@@ -445,6 +486,6 @@ export function runStructuralChecks(
     checkRowCountAgainstBaseline(csv.rows.length, baselineRows),
     checkBaselineDiff(csv, baselineCsv, opts.keyColumn),
     checkRequestedTabIsNotDefault(opts.requestedText ?? null, opts.defaultTabText ?? null),
-    checkGvizHeadersParam(opts.url ?? null),
+    checkGvizHeadersParam(opts.url ?? null, opts.autoAddedHeaders ?? false),
   ];
 }
