@@ -72,6 +72,26 @@ export interface LogEntry {
   readonly noticeApv: NoticeApvSet;
 }
 
+/**
+ * 로그 한 줄이 실제로 이 스킬의 기록인지 검사한다 (2026-09-03 추가). 이전에는
+ * `JSON.parse(l) as LogEntry`로 캐스팅만 해서 모양이 다른 줄이 그대로 통과했고, `null` 줄은
+ * `findStaleSince`에서 `null is not an object (evaluating 'e.gitbookApv')` 같은 내부
+ * TypeError를 사용자에게 그대로 노출했다(실측). 이 로그는 "언제부터 어긋났는지"를 판단하는
+ * 근거라, 쓰레기 항목이 섞이면 그 기간이 틀리게 나온다.
+ *
+ * `manifestApv`/`noticeApv`는 네트워크·파일별 숫자 또는 null을 담는 맵이라, 값 하나하나까지
+ * 따지지 않고 "객체인가"까지만 본다 — 과거에 필드가 늘어난 기록도 계속 읽히게 하기 위해서다.
+ */
+export function isLogEntry(v: unknown): v is LogEntry {
+  if (!v || typeof v !== "object") return false;
+  const e = v as Record<string, unknown>;
+  if (typeof e.observedAt !== "string") return false;
+  if (!(e.gitbookApv === null || typeof e.gitbookApv === "number")) return false;
+  if (!e.manifestApv || typeof e.manifestApv !== "object") return false;
+  if (!e.noticeApv || typeof e.noticeApv !== "object") return false;
+  return true;
+}
+
 // ---------------------------------------------------------------------------------------
 // 순수 파싱 함수 (네트워크 없음 — 유닛 테스트 대상)
 // ---------------------------------------------------------------------------------------
@@ -481,6 +501,29 @@ export interface EventJsonLogEntry {
   readonly versionId: string | null;
   readonly etag: string | null;
   readonly bodyLength: number;
+}
+
+/**
+ * Event.json 스냅샷 로그 한 줄이 실제로 그 기록인지 검사한다 (2026-09-03 추가). `--log-file`과
+ * 같은 무검증 캐스팅이었고 `null` 한 줄이면 `null is not an object (evaluating 's.observedAt')`
+ * 내부 오류를 그대로 노출했다(실측). 이 로그는 "언제 뭐가 바뀌었는지" 감사 기록이라, 쓰레기가
+ * 섞이면 변경 이력이 틀리게 읽힌다.
+ *
+ * ⚠️ `body`도 반드시 본다. 처음엔 "큰 필드라 과거 기록엔 없을 수도 있다"며 일부러 뺐는데,
+ * 호출부(`toEventLogEntry`)가 `s.body.length`를 읽기 때문에 body 없는 줄이 검증을 통과한 뒤
+ * 거기서 `undefined is not an object (evaluating 's.body.length')`로 터졌다 — 없애려던 바로
+ * 그 종류의 내부 오류를 검증기가 그대로 남겨둔 셈이었다(2026-09-03 실측으로 확인 후 수정).
+ * **검증기는 호출부가 실제로 읽는 필드를 다 봐야 한다.**
+ */
+export function isEventJsonSnapshotLike(v: unknown): v is EventJsonSnapshot {
+  if (!v || typeof v !== "object") return false;
+  const e = v as Record<string, unknown>;
+  return (
+    typeof e.observedAt === "string" &&
+    (e.versionId === null || typeof e.versionId === "string") &&
+    (e.etag === null || typeof e.etag === "string") &&
+    typeof e.body === "string"
+  );
 }
 
 /** Event.json이 직전 관측 대비 바뀌었는지 알려준다. 바뀌는 것 자체는 정상(담당자가 이벤트를

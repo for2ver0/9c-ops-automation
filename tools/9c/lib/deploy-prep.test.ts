@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  isLatestJsonSnapshotEntry,
   findRollbackTarget,
   checkRollbackSnapshotAvailable,
   planManageApvWorkflowInputs,
@@ -155,5 +156,31 @@ describe("overallLevel", () => {
         { id: "b", name: "b", ok: false, level: "FATAL", detail: "" },
       ]),
     ).toBe("FATAL");
+  });
+});
+
+// --- 2026-09-03 "조용한 OK" 점검 회귀 --------------------------------------------------
+// 로그를 `JSON.parse(l) as LatestJsonSnapshotEntry`로 캐스팅만 하던 탓에, `{"unrelated":true}`
+// 한 줄이 스냅샷으로 둔갑해 체크리스트가 "[x] 롤백 대상 확보됨 … version=undefined로 되돌릴
+// 수 있습니다"를 출력했다(실측). 롤백은 사고 대응 경로라 "있다고 했는데 없음"이 가장 위험하다.
+
+describe("isLatestJsonSnapshotEntry", () => {
+  test("정상 항목은 통과", () => {
+    expect(isLatestJsonSnapshotEntry({ observedAt: "2020-01-01T00:00:00Z", version: 1, clientTimestamp: "t" })).toBe(true);
+  });
+
+  test("모양이 다른 객체는 거부 — 이게 롤백 대상으로 둔갑하던 자리", () => {
+    expect(isLatestJsonSnapshotEntry({ unrelated: true })).toBe(false);
+  });
+
+  test("null·문자열·숫자 거부", () => {
+    expect(isLatestJsonSnapshotEntry(null)).toBe(false);
+    expect(isLatestJsonSnapshotEntry("just a string")).toBe(false);
+    expect(isLatestJsonSnapshotEntry(42)).toBe(false);
+  });
+
+  test("version이 숫자가 아니거나 NaN이면 거부", () => {
+    expect(isLatestJsonSnapshotEntry({ observedAt: "t", version: "1", clientTimestamp: "t" })).toBe(false);
+    expect(isLatestJsonSnapshotEntry({ observedAt: "t", version: NaN, clientTimestamp: "t" })).toBe(false);
   });
 });

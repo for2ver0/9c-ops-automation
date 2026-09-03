@@ -22,9 +22,11 @@ import {
   planManageApvWorkflowInputs,
   buildDeployChecklist,
   overallLevel,
+  isLatestJsonSnapshotEntry,
   type Check,
   type LatestJsonSnapshotEntry,
 } from "./lib/deploy-prep";
+import { parseJsonlLog, describeSkippedLines } from "./lib/jsonl-log";
 
 interface Args {
   snapshotLog?: string;
@@ -50,16 +52,17 @@ function parseArgs(argv: string[]): Args {
   return args;
 }
 
-async function readLog(path: string | undefined): Promise<LatestJsonSnapshotEntry[]> {
-  if (!path) return [];
+async function readLog(
+  path: string | undefined,
+): Promise<{ entries: LatestJsonSnapshotEntry[]; warning: string | null }> {
+  if (!path) return { entries: [], warning: null };
   const exists = await Bun.file(path).exists();
-  if (!exists) return [];
+  if (!exists) return { entries: [], warning: null };
   const text = await Bun.file(path).text();
-  return text
-    .split("\n")
-    .map((l: string) => l.trim())
-    .filter(Boolean)
-    .map((l: string) => JSON.parse(l) as LatestJsonSnapshotEntry);
+  // 모양 검증 없이 캐스팅하면 쓰레기 줄이 스냅샷으로 둔갑해 "롤백 대상 확보됨"이 잘못 뜬다
+  // (실측 근거는 lib/jsonl-log.ts 모듈 주석).
+  const { entries, skippedLines } = parseJsonlLog(text, isLatestJsonSnapshotEntry);
+  return { entries, warning: describeSkippedLines(path, skippedLines) };
 }
 
 async function appendLog(path: string | undefined, entry: LatestJsonSnapshotEntry): Promise<void> {
@@ -79,7 +82,7 @@ async function main() {
     fetchClientBuildInfo().catch(() => null),
   ]);
 
-  const priorLog = await readLog(args.snapshotLog);
+  const { entries: priorLog, warning: logWarning } = await readLog(args.snapshotLog);
   let rollbackTarget: LatestJsonSnapshotEntry | null = null;
   if (clientBuild) {
     rollbackTarget = findRollbackTarget(priorLog, clientBuild.version);
@@ -93,6 +96,17 @@ async function main() {
   const checks: Check[] = [checkGitbookVsManifest(gitbookApv, odin), checkGitbookVsManifest(gitbookApv, heimdall)];
   if (clientBuild) {
     checks.push(checkRollbackSnapshotAvailable(rollbackTarget, priorLog.length > 0));
+  }
+  // 건너뛴 로그 줄은 반드시 사람이 보게 체크 항목으로 올린다 — 조용히 무시하면 "롤백 대상이
+  // 없는 이유"를 알 수 없게 된다(로그가 상했는지 원래 기록이 없는지 구분이 안 된다).
+  if (logWarning) {
+    checks.push({
+      id: "snapshot-log-unreadable-lines",
+      name: "롤백 스냅샷 로그 형식",
+      ok: false,
+      level: "WARN",
+      detail: logWarning,
+    });
   }
 
   const manageApvInputs = planManageApvWorkflowInputs(gitbookApv, odin, heimdall);

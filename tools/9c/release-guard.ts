@@ -38,12 +38,15 @@ import {
   checkGitbookStaleness,
   checkEventJsonSnapshot,
   overallLevel,
+  isLogEntry,
+  isEventJsonSnapshotLike,
   type Check,
   type LogEntry,
   type NoticeFile,
   type EventJsonSnapshot,
   type EventJsonLogEntry,
 } from "./lib/release-guard";
+import { parseJsonlLog, describeSkippedLines } from "./lib/jsonl-log";
 
 interface Args {
   logFile?: string;
@@ -73,16 +76,15 @@ function parseArgs(argv: string[]): Args {
   return args;
 }
 
-async function readLog(path: string | undefined): Promise<LogEntry[]> {
-  if (!path) return [];
+async function readLog(path: string | undefined): Promise<{ entries: LogEntry[]; warning: string | null }> {
+  if (!path) return { entries: [], warning: null };
   const exists = await Bun.file(path).exists();
-  if (!exists) return [];
+  if (!exists) return { entries: [], warning: null };
   const text = await Bun.file(path).text();
-  return text
-    .split("\n")
-    .map((l: string) => l.trim())
-    .filter(Boolean)
-    .map((l: string) => JSON.parse(l) as LogEntry);
+  // 모양 검증 없이 캐스팅하면 쓰레기 줄이 "어긋난 기록"으로 섞여 staleSince 기간이 틀리게
+  // 나온다(실측 근거는 lib/jsonl-log.ts 모듈 주석).
+  const { entries, skippedLines } = parseJsonlLog(text, isLogEntry);
+  return { entries, warning: describeSkippedLines(path, skippedLines) };
 }
 
 async function appendLog(path: string | undefined, entry: LogEntry): Promise<void> {
@@ -95,16 +97,17 @@ async function appendLog(path: string | undefined, entry: LogEntry): Promise<voi
 /** Event.json 스냅샷 로그는 원문(`body`)까지 통째로 남긴다 — 4KB대로 작아서(2026-09-01
  *  라이브 확인 기준) 회차마다 쌓아도 부담이 적고, 원문이 있어야 나중에 실제로 뭐가
  *  바뀌었는지 diff를 뜰 수 있다. */
-async function readEventLog(path: string | undefined): Promise<EventJsonSnapshot[]> {
-  if (!path) return [];
+async function readEventLog(
+  path: string | undefined,
+): Promise<{ entries: EventJsonSnapshot[]; warning: string | null }> {
+  if (!path) return { entries: [], warning: null };
   const exists = await Bun.file(path).exists();
-  if (!exists) return [];
+  if (!exists) return { entries: [], warning: null };
   const text = await Bun.file(path).text();
-  return text
-    .split("\n")
-    .map((l: string) => l.trim())
-    .filter(Boolean)
-    .map((l: string) => JSON.parse(l) as EventJsonSnapshot);
+  // --log-file과 같은 이유로 모양을 검증한다 — 감사 기록이라 쓰레기가 섞이면 변경 이력이
+  // 틀리게 읽힌다(lib/jsonl-log.ts 참고).
+  const { entries, skippedLines } = parseJsonlLog(text, isEventJsonSnapshotLike);
+  return { entries, warning: describeSkippedLines(path, skippedLines) };
 }
 
 async function appendEventLog(path: string | undefined, entry: EventJsonSnapshot): Promise<void> {
@@ -161,14 +164,34 @@ async function main() {
     manifestApv: { odin: odin.apv, heimdall: heimdall.apv, thor: thor.apv },
     noticeApv: { en: noticeEn.apv, kr: noticeKr.apv, jp: noticeJp.apv },
   };
-  const priorLog = await readLog(args.logFile);
+  const { entries: priorLog, warning: logWarning } = await readLog(args.logFile);
   const staleSince = findStaleSince(priorLog, current);
   checks.push(checkGitbookStaleness(current, staleSince, new Date()));
+  // 건너뛴 줄은 반드시 사람이 보게 체크 항목으로 올린다 — 조용히 무시하면 staleSince가
+  // "언제부터"를 잘못 짚어도 그 이유를 알 수 없다.
+  if (logWarning) {
+    checks.push({
+      id: "log-file-unreadable-lines",
+      name: "관측 로그 형식",
+      ok: false,
+      level: "WARN",
+      detail: logWarning,
+    });
+  }
   await appendLog(args.logFile, current);
 
   if (eventSnapshot) {
-    const priorEventLog = (await readEventLog(args.eventLogFile)).map(toEventLogEntry);
-    checks.push(checkEventJsonSnapshot(eventSnapshot, priorEventLog));
+    const { entries: priorEventEntries, warning: eventLogWarning } = await readEventLog(args.eventLogFile);
+    checks.push(checkEventJsonSnapshot(eventSnapshot, priorEventEntries.map(toEventLogEntry)));
+    if (eventLogWarning) {
+      checks.push({
+        id: "event-log-unreadable-lines",
+        name: "Event.json 스냅샷 로그 형식",
+        ok: false,
+        level: "WARN",
+        detail: eventLogWarning,
+      });
+    }
     await appendEventLog(args.eventLogFile, eventSnapshot);
   }
 

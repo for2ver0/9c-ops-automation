@@ -114,3 +114,22 @@ FATAL(매니페스트가 깃북보다 뒤처짐 = APV 결번 의심)이 있으�
 | 배포 PR/브랜치/태그/changelog 자동화 | 미착수 | GitHub PR 쓰기 토큰 + D4 원칙 재검토 필요 |
 | 롤백 스냅샷 로그를 레포에 실제로 커밋해 지속시키는 것 | 로컬 파일 append만 구현됨 | 사람이 주기 실행마다 커밋(release-guard `--log-file`과 동일 패턴) |
 | APV ↔ latest.json version 인코딩 규칙 | 관측 1건뿐이라 미결정 (설계 문서 부록 E, "미해결 B"와는 다른 별개 항목) | 관측 축적 후 재검토 |
+
+## 롤백 스냅샷 로그 검증 (2026-09-03 "조용한 OK" 점검으로 추가)
+
+`--snapshot-log`를 `JSON.parse(줄) as LatestJsonSnapshotEntry`로 **검증 없이 캐스팅**해서
+읽던 탓에, 형식만 JSON이면 모양이 달라도 스냅샷으로 받아들였다. 실측 결과:
+
+| 로그 내용 | 그때 결과 |
+| --- | --- |
+| `{"unrelated":true}` | 체크리스트에 **`[x] 롤백 대상 확보됨 — 문제 발생 시 version=undefined(undefined 관측)로 되돌릴 수 있습니다.`** 출력 |
+| `"just a string"` | 위와 같음 |
+| `null` | `null is not an object (evaluating 'sorted[i].version')` 내부 오류가 그대로 노출 |
+
+**롤백은 사고 대응 경로라 "있다고 했는데 없음"이 가장 위험하다** — 배포가 잘못된 상황에서
+체크된 안내를 믿고 되돌리려 하면 대상이 없다.
+
+지금은 `isLatestJsonSnapshotEntry`로 모양을 검사해 **쓸 수 없는 줄은 건너뛰고, 몇 번째 줄을
+건너뛰었는지 WARN으로 알린다**(`롤백 스냅샷 로그 형식` 항목). 한 줄이 상했다고 나머지 정상
+기록까지 못 쓰게 만들면 정작 롤백이 필요할 때 도구가 막히므로 전체 실패로 처리하지 않는다.
+구현은 `tools/9c/lib/jsonl-log.ts` 공용 헬퍼(`release-guard`와 공유).

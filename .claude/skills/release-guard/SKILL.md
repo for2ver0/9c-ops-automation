@@ -159,3 +159,24 @@ FATAL이 하나라도 있으면 exit 1. `--log-file`을 주면 실행할 때마�
 | 과거 버전 보존 기간(S3 noncurrent version lifecycle) | 미확인 — `9c-assets`가 9c-infra terraform에 없어(0건) 콘솔에서 직접 확인 필요 | 인프라 접근 권한 있는 사람이 S3 콘솔에서 확인 |
 | 깃북이 실제로 정본인지(노션 파생 여부) | 미확인 | 설계 문서 미확인 1과 동일 — 담당자 확인 필요 |
 | `datasheet-to-csv`/`spec-to-datasheet`(밸런스 시트 파이프라인 나머지 2종) | 착수 안 함 | 각각 GitHub 토큰 확인 + 기존 도구 조사, 노션 공유 확인 (`datasheet-validate`는 이미 부분 구현됨) |
+
+## 관측 로그 검증 (2026-09-03 "조용한 OK" 점검으로 추가)
+
+`--log-file`도 `deploy-prep`과 같은 무검증 캐스팅이었다. 이 로그는 `findStaleSince`가
+"언제부터 어긋났는지"를 판단하는 근거라, 쓰레기 항목이 섞이면 **그 기간이 틀리게 나온다.**
+`null` 한 줄이면 `null is not an object (evaluating 'e.gitbookApv')` 내부 오류가 그대로
+노출됐다(실측).
+
+지금은 `isLogEntry`로 모양을 검사해 쓸 수 없는 줄을 건너뛰고, 건너뛴 줄 번호를 `관측 로그
+형식` WARN으로 알린다. `manifestApv`/`noticeApv`는 "객체인가"까지만 보는데, 과거에 필드가
+늘어난 기록도 계속 읽히게 하기 위해서다. 구현은 `tools/9c/lib/jsonl-log.ts`(deploy-prep과 공유).
+
+**`--event-log-file`도 같은 문제였다** (같은 날 추가 발견). Event.json 스냅샷 로그는 "언제
+뭐가 바뀌었는지" 감사 기록이라, 쓰레기가 섞이면 변경 이력이 틀리게 읽힌다. `null` 한 줄이면
+`null is not an object (evaluating 's.observedAt')`를 노출했다. `isEventJsonSnapshotLike`로
+검증하고, 건너뛴 줄은 `Event.json 스냅샷 로그 형식` WARN으로 알린다.
+
+⚠️ 이 검증기를 처음 만들 때 `body`를 "큰 필드라 과거 기록엔 없을 수도 있다"며 일부러 뺐는데,
+호출부(`toEventLogEntry`)가 `s.body.length`를 읽기 때문에 body 없는 줄이 검증을 통과한 뒤
+`undefined is not an object (evaluating 's.body.length')`로 터졌다 — 없애려던 오류를 검증기가
+그대로 남겨둔 꼴이었다. **검증기는 호출부가 실제로 읽는 필드를 다 봐야 한다.**

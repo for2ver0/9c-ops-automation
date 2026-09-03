@@ -91,9 +91,33 @@ export function checkSectionsPresent(sections: readonly ReleaseNoteSection[]): C
 export function checkNoEmptySections(sections: readonly ReleaseNoteSection[]): Check {
   const id = "no-empty-sections";
   const name = "빈 섹션 없음";
-  const empty = sections.filter((s) => s.items.length === 0).map((s) => s.category);
+  // 공백만 있는 항목은 "있는 것"으로 세지 않는다 (2026-09-03 "조용한 OK" 점검). 예전에는
+  // `items.length === 0`만 봐서, `items: ["", "  "]`인 섹션이 이 검사를 통과하고 초안에는
+  // `- ` / `-   ` 같은 빈 불릿이 그대로 찍혔다 — 그 상태로 전체 판정이 OK였다(실측).
+  const meaningful = (s: ReleaseNoteSection) => s.items.filter((i) => i.trim() !== "");
+  const empty = sections.filter((s) => meaningful(s).length === 0).map((s) => s.category);
+  const partiallyBlank = sections
+    .filter((s) => meaningful(s).length > 0 && meaningful(s).length < s.items.length)
+    .map((s) => s.category);
+
   if (empty.length > 0) {
-    return { id, name, ok: false, level: "WARN", detail: `항목이 하나도 없는 섹션: ${empty.join(", ")} — 실수로 빈 채 둔 건 아닌지 확인하세요.` };
+    const blankNote = partiallyBlank.length > 0 ? ` 또한 ${partiallyBlank.join(", ")} 섹션에 빈 항목이 섞여 있습니다.` : "";
+    return {
+      id,
+      name,
+      ok: false,
+      level: "WARN",
+      detail: `항목이 하나도 없는(또는 전부 공백인) 섹션: ${empty.join(", ")} — 실수로 빈 채 둔 건 아닌지 확인하세요.${blankNote}`,
+    };
+  }
+  if (partiallyBlank.length > 0) {
+    return {
+      id,
+      name,
+      ok: false,
+      level: "WARN",
+      detail: `빈 항목이 섞인 섹션: ${partiallyBlank.join(", ")} — 초안에 빈 불릿("- ")이 그대로 찍힙니다.`,
+    };
   }
   return { id, name, ok: true, level: "OK", detail: "모든 섹션에 항목이 있습니다." };
 }

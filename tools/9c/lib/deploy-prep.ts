@@ -37,6 +37,23 @@ export interface LatestJsonSnapshotEntry {
 }
 
 /**
+ * 로그 한 줄이 실제로 스냅샷 항목인지 검사한다 (2026-09-03 추가). 이전에는 `JSON.parse(l) as
+ * LatestJsonSnapshotEntry`로 캐스팅만 해서, `{"unrelated":true}` 같은 줄이 그대로 스냅샷으로
+ * 취급됐다 — 그 결과 체크리스트가 "롤백 대상 확보됨 … version=undefined로 되돌릴 수 있습니다"
+ * 라고 안내했다(실측). 롤백은 사고 대응 경로라 "있다고 했는데 없음"이 가장 위험하다.
+ */
+export function isLatestJsonSnapshotEntry(v: unknown): v is LatestJsonSnapshotEntry {
+  if (!v || typeof v !== "object") return false;
+  const e = v as Record<string, unknown>;
+  return (
+    typeof e.observedAt === "string" &&
+    typeof e.version === "number" &&
+    Number.isFinite(e.version) &&
+    typeof e.clientTimestamp === "string"
+  );
+}
+
+/**
  * 지금 값과 다른 가장 최근 기록을 "롤백하면 돌아갈 값"으로 찾는다. 로그에 현재 값과 같은
  * 항목만 있으면(=아직 한 번도 바뀐 적이 없으면) null — 롤백 대상이 없다는 뜻이지 에러가
  * 아니다.

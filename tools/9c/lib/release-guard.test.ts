@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
+  isLogEntry,
+  isEventJsonSnapshotLike,
   parseGitbookHead,
   parseManifestApv,
   parseNoticeHeaderApv,
@@ -327,5 +329,63 @@ describe("checkEventJsonSnapshot", () => {
   test("never crashes when versionId is null (e.g. bucket versioning off, or header missing)", () => {
     const c = checkEventJsonSnapshot(eventSnapshot(null), [eventLogEntry("2026-08-01T00:00:00Z", null)]);
     expect(c.level).toBe("OK");
+  });
+});
+
+// --- 2026-09-03 "조용한 OK" 점검 회귀 --------------------------------------------------
+// 두 로그(--log-file, --event-log-file) 모두 `JSON.parse(l) as T` 캐스팅만 하던 탓에 모양이
+// 다른 줄이 그대로 통과했고, `null` 줄은 `e.gitbookApv`/`s.observedAt` 접근에서 내부 오류를
+// 사용자에게 노출했다.
+
+describe("isLogEntry", () => {
+  const ok = {
+    observedAt: "2026-09-01T00:00:00Z",
+    gitbookApv: 200470,
+    manifestApv: { odin: 200480, heimdall: 200480, thor: null },
+    noticeApv: { en: 200450, kr: 200450, jp: 200450 },
+  };
+
+  test("정상 기록은 통과", () => {
+    expect(isLogEntry(ok)).toBe(true);
+  });
+
+  test("gitbookApv가 null이어도 통과 — 깃북을 못 읽은 관측도 유효한 기록이다", () => {
+    expect(isLogEntry({ ...ok, gitbookApv: null })).toBe(true);
+  });
+
+  test("null·문자열·모양 다른 객체는 거부", () => {
+    expect(isLogEntry(null)).toBe(false);
+    expect(isLogEntry("x")).toBe(false);
+    expect(isLogEntry({ unrelated: true })).toBe(false);
+  });
+
+  test("manifestApv에 필드가 더 늘어난 기록도 통과 — '객체인가'까지만 본다", () => {
+    expect(isLogEntry({ ...ok, manifestApv: { ...ok.manifestApv, futureNetwork: 1 } })).toBe(true);
+  });
+});
+
+describe("isEventJsonSnapshotLike", () => {
+  const ok = { observedAt: "2026-09-01T00:00:00Z", versionId: "v1", etag: "e1", lastModified: null, body: "{}" };
+
+  test("정상 스냅샷은 통과", () => {
+    expect(isEventJsonSnapshotLike(ok)).toBe(true);
+  });
+
+  test("body가 없으면 거부 — 호출부(toEventLogEntry)가 s.body.length를 읽는다", () => {
+    // 처음 만든 검증기는 body를 일부러 안 봤는데, 그러면 body 없는 줄이 통과한 뒤
+    // `undefined is not an object (evaluating 's.body.length')`로 터졌다(실측).
+    // 검증기는 호출부가 실제로 읽는 필드를 다 봐야 한다.
+    const { body, ...withoutBody } = ok;
+    expect(isEventJsonSnapshotLike(withoutBody)).toBe(false);
+  });
+
+  test("versionId·etag는 null이어도 통과 — S3 versioning이 꺼져 있으면 null이 온다", () => {
+    expect(isEventJsonSnapshotLike({ ...ok, versionId: null, etag: null })).toBe(true);
+  });
+
+  test("null·문자열·모양 다른 객체는 거부", () => {
+    expect(isEventJsonSnapshotLike(null)).toBe(false);
+    expect(isEventJsonSnapshotLike("x")).toBe(false);
+    expect(isEventJsonSnapshotLike({ unrelated: true })).toBe(false);
   });
 });

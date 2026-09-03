@@ -131,3 +131,29 @@ describe("buildReleaseNoteDraft", () => {
     expect(idxB).toBeGreaterThan(idxA);
   });
 });
+
+// --- 2026-09-03 "조용한 OK" 점검 회귀 --------------------------------------------------
+// `items.length === 0`만 보던 탓에 `items: ["", "  "]`인 섹션이 "빈 섹션 없음 — 모든 섹션에
+// 항목이 있습니다"로 통과했고, 초안엔 `- ` / `-   ` 빈 불릿이 그대로 찍힌 채 전체 판정이
+// OK였다(실측).
+describe("checkNoEmptySections — 공백 항목 (2026-09-03)", () => {
+  test("항목이 전부 공백이면 빈 섹션으로 본다", () => {
+    const c = checkNoEmptySections([{ category: "버그 수정", items: ["", "  "] }]);
+    expect(c.level).toBe("WARN");
+    expect(c.detail).toContain("전부 공백");
+  });
+
+  test("빈 항목이 섞여 있으면 별도로 알린다", () => {
+    const c = checkNoEmptySections([{ category: "버그 수정", items: ["실제 항목", "  "] }]);
+    expect(c.level).toBe("WARN");
+    expect(c.detail).toContain("빈 항목이 섞인");
+  });
+
+  test("정상 항목만 있으면 OK", () => {
+    expect(checkNoEmptySections([{ category: "버그 수정", items: ["실제 항목"] }]).level).toBe("OK");
+  });
+
+  test("items가 빈 배열인 기존 케이스도 그대로 WARN", () => {
+    expect(checkNoEmptySections([{ category: "버그 수정", items: [] }]).level).toBe("WARN");
+  });
+});
