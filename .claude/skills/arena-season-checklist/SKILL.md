@@ -96,7 +96,7 @@ bun run "$(git rev-parse --show-toplevel)/tools/9c/arena-season-checklist.ts" --
 먼저 종료되는 것**이다(실측 근거·재발 이력은 `tools/9c/lib/read-file.ts` 모듈 주석 참고). 지금은 읽기 전에
 존재를 확인해 `"<라벨> 파일을 찾을 수 없습니다: <경로>"`로 명확히 실패하고 exit 1이다.
 
-⚠️ 커밋 8049110이 `qa-checklist`에서 같은 증상을 고치며 원인을 "Promise.all의 동시 reject가
+⚠️ 커밋 969a29f가 `qa-checklist`에서 같은 증상을 고치며 원인을 "Promise.all의 동시 reject가
 삼켜진다"고 적었는데, 2026-09-03 재현으로 **그 진단은 틀렸다**는 게 확인됐다(수정 자체였던
 `.exists()` 사전 체크는 유효). 단독 `await`에서도 동일하게 재현된다 — 이벤트 루프를 살려두면
 같은 읽기가 7ms 만에 ENOENT로 정상 reject하므로, "행"이 아니라 "조기 종료"다.

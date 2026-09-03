@@ -14,7 +14,7 @@
  *     재현은 정상적으로 catch되므로, 파일 I/O처럼 **비동기 완료가 필요한** 거부에서만 난다.
  *
  * 이 저장소에서 같은 버그가 세 번 났다:
- *   1. `qa-checklist.ts` — 커밋 8049110에서 수정. 당시 원인을 "Promise.all의 동시 reject가
+ *   1. `qa-checklist.ts` — 커밋 969a29f에서 수정. 당시 원인을 "Promise.all의 동시 reject가
  *      삼켜진다"로 적었는데 위 재현으로 그건 아니었음이 확인됐다(수정 자체인 `.exists()`
  *      사전 체크는 유효했다).
  *   2. `arena-season-checklist.ts` — 2026-09-03 발견. `--reward-table-json ./없는파일.json`
