@@ -25,6 +25,32 @@ export interface ParsedCsv {
  *   - 빈 줄을 파싱 전에 미리 제거하지 않는다 — 원본 줄 번호가 그대로 유지된다.
  * 헤더 중복은 여기서 병합하지 않고 그대로 배열에 남긴다.
  */
+/** 필드 하나를 RFC4180 최소 인용으로 직렬화한다 — 콤마·따옴표·개행이 있을 때만 감싼다. */
+function serializeField(value: string): string {
+  if (value.includes(",") || value.includes('"') || value.includes("\n") || value.includes("\r")) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
+
+/**
+ * `ParsedCsv`를 CSV 텍스트로 직렬화한다(`parseCsv`의 역함수). `datasheet-to-csv`가 lib9c
+ * `Lib9c/TableCSV/*.csv`에 그대로 커밋해도 되는 파일을 만들 때 쓴다 — 실측 결과 그 파일들은
+ * 전부 LF만 쓰고 따옴표를 전혀 안 쓰므로(콤마·개행이 필요한 값이 없어서), 항상 인용하는 방식
+ * 대신 RFC4180 최소 인용으로 직렬화해야 lib9c 원본과 같은 모양이 나온다. 줄바꿈은 항상 LF로
+ * 강제한다(입력 문자열에 CRLF가 섞여 있어도 출력엔 CR을 남기지 않는다 — Windows 개발 환경에서
+ * 실행해도 lib9c의 LF 관례를 깨지 않기 위해서).
+ *
+ * **트레일링 개행 없음** — `planetarium/lib9c`의 `Lib9c/TableCSV/SkillSheet.csv`를 실제로
+ * 받아 확인(2026-09-04): 마지막 데이터 행 뒤에 개행이 없다. 여기서 개행을 붙이면 diff 계산엔
+ * 영향 없지만(값 비교는 파싱된 행 단위라 무관), 사람이 최종 파일을 `git diff`로 확인할 때
+ * "파일 끝에 개행 없음" 표시가 매번 걸려 실제 변경과 섞여 보인다.
+ */
+export function serializeCsv(csv: ParsedCsv): string {
+  const lines = [csv.headers, ...csv.rows].map((row) => row.map(serializeField).join(","));
+  return lines.map((l) => l.replace(/\r\n/g, "\n").replace(/\r/g, "\n")).join("\n");
+}
+
 export function parseCsv(text: string): ParsedCsv {
   const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   const rawRows = tokenizeCsvRows(normalized);

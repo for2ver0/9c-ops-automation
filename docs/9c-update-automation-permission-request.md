@@ -123,7 +123,7 @@ Backoffice를 거쳐 현재 값을 확인하는 두 번째 경로로 존재합�
 | --- | --- | --- |
 | `datasheet-validate` | (없음 — 시트가 이미 공개) | ✅ 착수 완료(부분 구현) |
 | `spec-to-datasheet` | ② 노션 페이지 공유 | ❌ — ②(자체 확인) 필요, [요청 문서](9c-update-automation-notion-request.md) 전달함 |
-| `datasheet-to-csv` | ⑨ lib9c 포크 push 확인 + 기존 도구 실태 조사 | ❌ — ⑨와 조사가 더 필요 |
+| `datasheet-to-csv` | ⑨ lib9c 포크 push 확인 + 기존 도구 실태 조사 | ✅ 착수 완료(부분 구현, 2026-09-04) — ⑦⑨는 `planetarium/lib9c` 공개 커밋 이력을 직접 조사해 해소, [`.claude/skills/datasheet-to-csv/SKILL.md`](../.claude/skills/datasheet-to-csv/SKILL.md) 참고. 실제 fork push·PR 생성은 여전히 사람 몫 |
 
 ## 승인 안내
 
