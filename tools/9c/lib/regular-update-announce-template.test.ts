@@ -68,6 +68,24 @@ describe("checkAnnouncement", () => {
     expect(checks.find((c) => c.id === "release-date-not-past")?.ok).toBe(true);
   });
 
+  // 굴러간 날짜를 "정상 범위"라고 단언하던 조용한 OK. 2026-02-30은 Date.UTC에서 March 2로
+  // 굴러가는데, 그 3월 2일은 today(9월 3일)보다 과거이기도 해서 OK 문구가 두 번 틀렸었다.
+  test("release-date-not-past is WARN (not a silent OK) when the date is not a real calendar date", () => {
+    const checks = checkAnnouncement({ apv: 1, releaseDate: { year: 2026, month: 2, day: 30 }, summary: "x" }, today);
+    const c = checks.find((c) => c.id === "release-date-not-past");
+    expect(c?.level).toBe("WARN");
+    expect(c?.ok).toBe(false);
+    expect(c?.detail).toContain("판정하지 않았습니다");
+  });
+
+  test("release-date-not-past never shows the rolled-over date for an unreal date", () => {
+    const checks = checkAnnouncement({ apv: 1, releaseDate: { year: 2026, month: 2, day: 30 }, summary: "x" }, today);
+    const detail = checks.find((c) => c.id === "release-date-not-past")?.detail ?? "";
+    expect(detail).toContain("2026-02-30");
+    expect(detail).not.toContain("March 2, 2026");
+    expect(detail).not.toContain("정상 범위");
+  });
+
   test("no time-deviation check when releaseTimeKst is omitted (uses observed default)", () => {
     const checks = checkAnnouncement({ apv: 1, releaseDate: { year: 2026, month: 9, day: 10 }, summary: "x" }, today);
     expect(checks.some((c) => c.id === "release-time-deviates-from-observed")).toBe(false);

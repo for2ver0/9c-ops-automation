@@ -74,6 +74,16 @@
 | 롤백 절차 | 잘못된 값을 썼을 때 되돌리는 절차 — 시트는 트랜잭션이 아니므로 사람이 감사 로그를 보고 직접 되돌려야 함 |
 | 차등 접근 권한 | 지금은 단일 서비스 계정·단일 접근 모델로 시작 — 후속 설계로 미룸(아레나 정산과 동일 판단) |
 
+2026-09-05 검증 기록 — 자격증명 없이 확인 가능한 범위는 따로 확인해뒀다. `signServiceAccountJwt`가
+만든 JWT를 임시 RSA 키쌍으로 서명·검증해 (a) RS256 서명이 대응 공개키로 검증되고 (b) 클레임이
+구글 서비스 계정 흐름과 일치함(`iss`=클라이언트 이메일, `aud`=`https://oauth2.googleapis.com/token`,
+`scope` 그대로 전달, `exp`=`iat`+3600, base64url 패딩 없음)을 확인했다. 토큰 교환도 문서화된
+형식(`grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer` + `assertion`)이고, 호출 URL
+세 가지(`values/{range}` GET, 같은 경로 PUT + `valueInputOption`, `values/{range}:append` POST +
+`insertDataOption=INSERT_ROWS`)도 Sheets API v4 형식과 일치한다. **다만 실제 인증된 쓰기는 아직
+한 번도 실행된 적이 없다** — 위 표 첫 행(서비스 계정 편집자 공유)이 풀려야 처음 확인할 수 있고,
+그때까지 "형식은 맞다"와 "실제로 써진다"는 다른 이야기로 남는다.
+
 ## 5. 관계 문서
 
 - `.claude/skills/spec-to-datasheet/SKILL.md` §5 — 이 문서가 예외를 정의하는 원래 원칙

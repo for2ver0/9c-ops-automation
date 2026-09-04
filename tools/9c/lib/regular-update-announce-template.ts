@@ -127,15 +127,23 @@ export function checkAnnouncement(input: RegularUpdateAnnouncement, today: Calen
     detail: apvOk ? `v${input.apv}` : `APV가 양의 정수가 아닙니다(입력: ${input.apv}) — 공지에 "v${input.apv}"로 그대로 찍힙니다.`,
   });
 
+  // 날짜가 실재하지 않으면 과거 여부는 판정할 수 없다. 예전엔 그 경우가 isPast=false로 떨어져
+  // OK가 됐는데, 그 OK 문구가 formatCalendarDate로 굴러간 날짜(2026-02-30 → "March 2, 2026")를
+  // "오늘 이후로 정상 범위"라고 단언했다 — 사람이 친 적 없는 날짜를, 그것도 실제로는 과거인
+  // 날짜를 확인해준 것처럼 보이는 조용한 OK다. "미실행 != 확인했는데 정상" 원칙대로 WARN으로
+  // 내리고, 굴러간 날짜는 아예 보여주지 않는다(위 release-date-is-real FATAL이 원본을 보여준다).
   const isPast = realDate && compareDates(input.releaseDate, today) < 0;
+  const rawDate = `${y}-${String(mo).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
   checks.push({
     id: "release-date-not-past",
     name: "출시일이 과거가 아님",
-    ok: !isPast,
-    level: isPast ? "WARN" : "OK",
-    detail: isPast
-      ? `출시일(${formatCalendarDate(input.releaseDate)})이 오늘(KST 기준 ${formatCalendarDate(today)})보다 과거입니다 — 날짜 오타나 이전 초안 재사용이 아닌지 확인하세요.`
-      : `${formatCalendarDate(input.releaseDate)} — 오늘(KST 기준 ${formatCalendarDate(today)}) 이후로 정상 범위.`,
+    ok: realDate && !isPast,
+    level: realDate && !isPast ? "OK" : "WARN",
+    detail: !realDate
+      ? `${rawDate}은 달력에 없는 날짜라 과거 여부를 판정하지 않았습니다 — 위 FATAL을 고친 뒤 다시 실행하세요(확인해서 정상이라는 뜻이 아닙니다).`
+      : isPast
+        ? `출시일(${formatCalendarDate(input.releaseDate)})이 오늘(KST 기준 ${formatCalendarDate(today)})보다 과거입니다 — 날짜 오타나 이전 초안 재사용이 아닌지 확인하세요.`
+        : `${formatCalendarDate(input.releaseDate)} — 오늘(KST 기준 ${formatCalendarDate(today)}) 이후로 정상 범위.`,
   });
 
   const time = input.releaseTimeKst ?? DEFAULT_RELEASE_TIME_KST;
