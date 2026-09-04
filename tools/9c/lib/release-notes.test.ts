@@ -112,9 +112,9 @@ describe("buildReleaseNoteDraft", () => {
     expect(draft).toContain("- 아이템 B 드랍률 상향");
   });
 
-  test("includes the not-verified-format disclaimer", () => {
+  test("includes the GitBook-extension-syntax-not-verified disclaimer", () => {
     const draft = buildReleaseNoteDraft({ apv: 200480, sections: [{ category: "a", items: ["b"] }] });
-    expect(draft).toContain("검증되지 않았습니다");
+    expect(draft).toContain("검증 안 됐습니다");
   });
 
   test("multiple sections are all rendered, in the given order", () => {
