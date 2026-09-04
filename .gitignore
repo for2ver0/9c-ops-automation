@@ -17,6 +17,11 @@ node_modules/
 # bun test coverage
 coverage/
 
+# 구글 서비스 계정 키(spec-to-datasheet-apply --apply). GOOGLE_SHEETS_SA_KEY_PATH로 실행 시점에
+# 주입하는 것이 원칙이라 여기 있으면 안 되지만, 실수로 레포 안에 두는 경우를 막는 안전망이다.
+*service-account*.json
+*sa-key*.json
+
 # OS / editor cruft
 .DS_Store
 Thumbs.db

@@ -31,12 +31,16 @@ description: Nine Chronicles 정규 업데이트 기획서를 밸런스 시트�
 
 | 도구 | 위치 | 역할 |
 | --- | --- | --- |
-| `spec-to-datasheet.ts` | `tools/9c/spec-to-datasheet.ts` (bun) | CLI 본체 |
+| `spec-to-datasheet.ts` | `tools/9c/spec-to-datasheet.ts` (bun) | CLI 본체 — 지시서 생성(읽기 전용) |
 | 대조 로직 | `tools/9c/lib/spec-to-datasheet.ts` | 순수 함수(유닛 테스트 대상) |
 | CSV 파서 | `tools/9c/lib/csv.ts` | RFC4180 파서 — 다른 시트 스킬들과 공유 |
 | 유닛 테스트 | `tools/9c/lib/spec-to-datasheet.test.ts` | 대조·갭 검출 로직 + 형식 왕복 계약, 네트워크 없이 실행 |
+| `spec-to-datasheet-apply.ts` | `tools/9c/spec-to-datasheet-apply.ts` (bun) | CLI 본체 — 사람 승인 시 실제 반영(§5 예외, `docs/sheet-write-automation-design.md`) |
+| 쓰기 대상 필터링·A1 변환·인증 | `tools/9c/lib/{spec-to-datasheet-apply,a1-notation,google-sheets-auth,google-sheets-values}.ts` | 순수 함수는 테스트, 네트워크/파일 I/O 래퍼는 제외 |
+| 유닛 테스트 | `tools/9c/lib/{spec-to-datasheet-apply,a1-notation,google-sheets-values,google-sheets-auth}.test.ts` | 네트워크 없이 실행 |
 
-실행: `bun test tools/9c/lib/spec-to-datasheet.test.ts` (23 pass).
+실행: `bun test tools/9c/lib/spec-to-datasheet.test.ts` (24 pass),
+`bun test tools/9c/lib/spec-to-datasheet-apply.test.ts tools/9c/lib/a1-notation.test.ts tools/9c/lib/google-sheets-values.test.ts tools/9c/lib/google-sheets-auth.test.ts` (34 pass).
 
 ## 1. 무엇을 하는가
 
@@ -129,8 +133,13 @@ CLI도 한 번에 CSV 하나만 본다.
   사람이 직접 전달하는 것으로 확정돼 구현하지 않았다. 필요해지면 이 모듈 **앞단**에 붙이면
   된다 — 대조 로직은 입력이 어디서 왔는지와 무관하다.
 - **기획서 문장에서 계획을 자동 추출** — 에이전트가 매번 읽고 판단한다(위 §2의 이유).
-- **시트를 실제로 고치는 것** — 이 스킬은 지시서만 만든다. 구글 시트에 값을 입력하는 건
-  사람이 한다(D4 원칙: 자동화는 라이브를 바꾸지 않는다).
+- **시트를 실제로 고치는 것** — 기본은 사람이 직접 입력한다(D4 원칙: 자동화는 라이브를 바꾸지
+  않는다). 2026-09-04부터 예외가 있다 — 사람이 이 작업 지시서를 대화형으로 명시적 승인하고
+  `--apply` 플래그까지 준 경우에 한해 `spec-to-datasheet-apply`가 대신 쓸 수 있다(이중 게이트 —
+  사람 승인 + `--apply`, 둘 다 없으면 아무것도 안 씀). WARN·FATAL 항목(병합형 시트로 의심되는
+  중복 키, 컬럼이 안 채워진 새 행, 컬럼 없음·계획 모순)은 이 경로로도 절대 자동 반영되지
+  않는다 — 사람이 원본을 보고 직접 처리해야 한다. 안전장치·미해결 항목은
+  `docs/sheet-write-automation-design.md` 참고.
 - **제안 값이 게임 밸런스상 타당한지** — 기획서에 적힌 값을 그대로 옮길 뿐, 그 값이 맞는지는
   판단하지 않는다.
 - **시트 간 참조 ID·타입 검증** — `datasheet-validate`와 같은 이유로 lib9c 스키마 매핑 필요.

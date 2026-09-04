@@ -55,7 +55,7 @@ Claude에게 말로 요청하면 [`regular-update` 에이전트](.claude/agents/
 | # | 단계 | 담당 스킬 | 상태 |
 | --- | --- | --- | --- |
 | ① | 사용자가 기획서를 agent에게 전달 (adventure/arena/이벤트 던전/infinite tower 등 타겟 무관) | — | 사람이 입력, 스킬 없음 |
-| ② | agent가 기획서 기반으로 데이터 시트 작성 + 기획서 대비 재확인 + 이상 데이터 확인 | [`spec-to-datasheet`](.claude/skills/spec-to-datasheet/SKILL.md) (입력 작업 지시서) → [`spec-datasheet-check`](.claude/skills/spec-datasheet-check/SKILL.md) (기획서 대사) + [`datasheet-validate`](.claude/skills/datasheet-validate/SKILL.md) (구조적 이상 검출) | 부분 구현 — "무엇을 어떻게 바꿔야 하는지"(지시서)·"시트가 기획서와 일치하는가"(대사)·"CSV 구조가 이상한가"는 됨. 구글 시트에 값을 실제로 입력하는 건 사람(D4) |
+| ② | agent가 기획서 기반으로 데이터 시트 작성 + 기획서 대비 재확인 + 이상 데이터 확인 | [`spec-to-datasheet`](.claude/skills/spec-to-datasheet/SKILL.md) (입력 작업 지시서) → [`spec-datasheet-check`](.claude/skills/spec-datasheet-check/SKILL.md) (기획서 대사) + [`datasheet-validate`](.claude/skills/datasheet-validate/SKILL.md) (구조적 이상 검출) | 부분 구현 — "무엇을 어떻게 바꿔야 하는지"(지시서)·"시트가 기획서와 일치하는가"(대사)·"CSV 구조가 이상한가"는 됨. 구글 시트에 값을 실제로 입력하는 건 기본은 사람(D4), 사람이 승인하면 `spec-to-datasheet-apply --apply`로 에이전트가 대행 가능(2026-09-04, `docs/sheet-write-automation-design.md`) |
 | ③ | 이상 없으면 데이터 시트를 인터널(백오피스 스테이징)에 배포 | [`datasheet-release-gate`](.claude/skills/datasheet-release-gate/SKILL.md) (업로드 전 게이트) | 부분 구현 — ②의 두 검증을 시트별로 집계해 "올려도 되는가"만 판단. 실제 스테이징 업로드 자체는 D4 원칙상 항상 사람이 직접(백오피스 API를 이 환경에서 확인 못 함) |
 | ④ | QA 담당자가 인터널 배포본을 리뷰 | [`qa-checklist`](.claude/skills/qa-checklist/SKILL.md) | 부분 구현 — 시트 전/후 diff만. "무엇을 테스트해야 하는지" 매핑은 미착수 |
 | ⑤ | QA 피드백 반영해 ③~④ 반복 → 이상 없으면 깃북에 릴리즈 노트 작성 | [`release-notes`](.claude/skills/release-notes/SKILL.md) | 부분 구현 — 초안 정리까지, 실제 깃북 게시는 사람 |
@@ -93,6 +93,7 @@ Claude에게 말로 요청하면 [`regular-update` 에이전트](.claude/agents/
 | [`qa-checklist`](.claude/skills/qa-checklist/SKILL.md) | 시트 CSV 전/후 diff → 추가·삭제·변경 행 QA 체크리스트 | 부분 구현 — "무엇이 바뀌었는지"만. "그래서 무엇을 테스트해야 하는지"(시트별 기능 매핑)는 lib9c 도메인 지식 필요로 미착수 |
 | [`announce-fanout`](.claude/skills/announce-fanout/SKILL.md) | 인게임 공지(EN/KR/JP) 언어별 불일치 검사 재포장 + 실제 릴리즈 공지(버전/날짜/요약/링크) 고정 템플릿 초안 | 부분 구현 — 2026-09-03: 담당자 제공 실측 샘플 2건으로 실제 릴리즈 공지 고정 템플릿(`regular-update-announce-template.ts`, arena-announce와 같은 방식)을 추가, 기존 TextNotice 재포장 도구(`announce-fanout.ts`)는 용도가 달라 별도 유지. 휴장/이벤트 공지 초안은 미착수 — Event.json 읽기 자체는 더 이상 안 막혀 있지만(2026-09-01 확인), 그 파일엔 배너 메타데이터만 있고 초안화할 문구가 없음 |
 | [`spec-to-datasheet`](.claude/skills/spec-to-datasheet/SKILL.md) | 기획서 계획 JSON ↔ 현재 시트 대조 → 입력 작업 지시서(현재값 → 제안값) | 2026-09-03 신규, 부분 구현 — 지시서 생성·새 행 빈 컬럼 검출까지. 노션 API 직접 읽기는 미착수지만 지금 워크플로(기획서를 사람이 직접 전달)엔 불필요. 계획 JSON은 `spec-datasheet-check`의 assertions와 같은 형식이라 작성 후 검증까지 그대로 이어짐 |
+| `spec-to-datasheet-apply`(`tools/9c/spec-to-datasheet-apply.ts`, 별도 SKILL.md 없음 — `spec-to-datasheet` §5 예외) | 사람이 승인한 지시서를 실제로 구글 시트에 반영 | 2026-09-04 신규 — 이중 게이트(대화형 승인 + `--apply`), 쓰기 직전 시트 재조회, WARN·FATAL 자동 반영 금지, JSONL 감사 로그. 설계·미해결 항목은 `docs/sheet-write-automation-design.md` |
 | `datasheet-to-csv` | 밸런스 시트 파이프라인 나머지 1종(1차 필수) | 미착수 — lib9c push 확인(⑨) + 기존 CSV 익스포트 도구 소유·운영 실태 조사(⑦) 필요 |
 | [`release-notes`](.claude/skills/release-notes/SKILL.md) | 버전+카테고리별 항목 → 깃북 붙여넣기용 릴리즈 노트 초안 | 부분 구현 — 버전 대사(+10 관행, 중복 게시 방지)·섹션 정리만. ⑥ 확인(깃북 에디터 직접 입력, GitHub 토큰 불필요)으로 착수. 문구는 짓지 않고 사람이 준 것만 정리 — 정확한 마크다운 문법은 원본 저장소(`nine-chronicles-docs`, 비공개) 미확인으로 검증 못 함 |
 
